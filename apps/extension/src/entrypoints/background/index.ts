@@ -1,5 +1,15 @@
-import { MessageType, type StartRunPayload } from '../../lib/messaging'
+import {
+  MessageType,
+  type StartRunPayload,
+  type CheckpointPendingPayload,
+  type CheckpointResponsePayload,
+} from '../../lib/messaging'
 import * as api from '../../lib/api'
+
+const CHECKPOINT_NOTIFICATION_PREFIX = 'quokka-checkpoint-'
+
+// Pending checkpoint resolvers keyed by runId
+const pendingCheckpoints = new Map<string, (approved: boolean) => void>()
 
 export default defineBackground(() => {
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -14,9 +24,21 @@ export default defineBackground(() => {
         return true
       }
 
+      case MessageType.CHECKPOINT_RESPONSE: {
+        const { runId, approved } = payload as CheckpointResponsePayload
+        const resolver = pendingCheckpoints.get(runId)
+        if (resolver) {
+          resolver(approved)
+          pendingCheckpoints.delete(runId)
+          // Clear the notification if one exists
+          chrome.notifications.clear(`${CHECKPOINT_NOTIFICATION_PREFIX}${runId}`)
+        }
+        sendResponse({ ok: true })
+        return false
+      }
+
       case MessageType.RESUME_CHECKPOINT: {
-        // Forward approval -- in a full implementation this would
-        // signal the running orchestration loop
+        // Legacy: forward approval
         sendResponse({ ok: true })
         return false
       }
@@ -32,7 +54,29 @@ export default defineBackground(() => {
       }
     }
   })
+
+  // Handle notification button clicks (approve/reject)
+  chrome.notifications.onButtonClicked.addListener((notificationId, buttonIndex) => {
+    if (!notificationId.startsWith(CHECKPOINT_NOTIFICATION_PREFIX)) return
+
+    const runId = notificationId.slice(CHECKPOINT_NOTIFICATION_PREFIX.length)
+    const resolver = pendingCheckpoints.get(runId)
+    if (resolver) {
+      // Button 0 = Approve, Button 1 = Reject
+      resolver(buttonIndex === 0)
+      pendingCheckpoints.delete(runId)
+      chrome.notifications.clear(notificationId)
+    }
+  })
 })
+
+function resolveSelector(target: { css?: string; testId?: string; ariaLabel?: string; text?: string }): string {
+  if (target.css) return target.css
+  if (target.testId) return `[data-testid="${target.testId}"]`
+  if (target.ariaLabel) return `[aria-label="${target.ariaLabel}"]`
+  if (target.text) return target.text
+  return ''
+}
 
 async function handleStartRun(
   recipeId: string,
@@ -41,6 +85,9 @@ async function handleStartRun(
   const recipe = await api.getRecipe(recipeId)
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
   if (!tab?.id) throw new Error('No active tab')
+
+  // Generate a runId for checkpoint tracking
+  const runId = `run_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 
   for (let i = 0; i < recipe.steps.length; i++) {
     const step = recipe.steps[i]
@@ -51,13 +98,7 @@ async function handleStartRun(
 
     switch (step.type) {
       case 'click': {
-        const selector = step.target.css ?? step.target.testId
-          ? step.target.testId
-            ? `[data-testid="${step.target.testId}"]`
-            : step.target.css!
-          : step.target.ariaLabel
-            ? `[aria-label="${step.target.ariaLabel}"]`
-            : ''
+        const selector = resolveSelector(step.target)
         await chrome.tabs.sendMessage(tab.id!, {
           type: MessageType.BRIDGE_CALL,
           payload: { method: 'click', selector },
@@ -109,7 +150,41 @@ async function handleStartRun(
       }
 
       case 'checkpoint': {
-        // In a full implementation, pause and wait for user approval
+        const checkpointMessage = step.message ?? 'Checkpoint reached'
+
+        // Send CHECKPOINT_PENDING to popup
+        chrome.runtime.sendMessage({
+          type: MessageType.CHECKPOINT_PENDING,
+          payload: {
+            runId,
+            stepIndex: i,
+            message: checkpointMessage,
+          } satisfies CheckpointPendingPayload,
+        }).catch(() => {
+          // Popup may not be open — notification is the fallback
+        })
+
+        // Create a chrome notification as backup
+        chrome.notifications.create(
+          `${CHECKPOINT_NOTIFICATION_PREFIX}${runId}`,
+          {
+            type: 'basic',
+            iconUrl: chrome.runtime.getURL('icon/128.png'),
+            title: 'Quokka — Checkpoint',
+            message: checkpointMessage,
+            buttons: [{ title: 'Approve' }, { title: 'Reject' }],
+            requireInteraction: true,
+          }
+        )
+
+        // Wait for approval/rejection
+        const approved = await new Promise<boolean>((resolve) => {
+          pendingCheckpoints.set(runId, resolve)
+        })
+
+        if (!approved) {
+          throw new Error('Checkpoint rejected by user')
+        }
         break
       }
     }

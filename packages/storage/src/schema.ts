@@ -41,3 +41,14 @@ export const packs = sqliteTable('packs', {
   version: text('version').notNull(),
   recipeIdsJson: text('recipeIdsJson').notNull(),
 })
+
+export const providers = sqliteTable('providers', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  type: text('type').notNull(),
+  apiKey: text('apiKey'),
+  baseUrl: text('baseUrl'),
+  model: text('model'),
+  createdAt: text('createdAt').notNull(),
+  updatedAt: text('updatedAt').notNull(),
+})

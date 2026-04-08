@@ -44,6 +44,17 @@ CREATE TABLE IF NOT EXISTS packs (
   version TEXT NOT NULL,
   recipeIdsJson TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS providers (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL,
+  apiKey TEXT,
+  baseUrl TEXT,
+  model TEXT,
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT NOT NULL
+);
 `
 
 export type QuokkaDb = BetterSQLite3Database<typeof schema>

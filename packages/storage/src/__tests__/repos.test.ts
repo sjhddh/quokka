@@ -5,6 +5,7 @@ import { RecipeRepo } from '../repos/recipe-repo.js'
 import { RunRepo } from '../repos/run-repo.js'
 import { EventRepo } from '../repos/event-repo.js'
 import { PackRepo } from '../repos/pack-repo.js'
+import { ProviderRepo } from '../repos/provider-repo.js'
 
 let db: QuokkaDb
 
@@ -152,5 +153,74 @@ describe('PackRepo', () => {
     repo.create(samplePack)
     repo.create({ ...samplePack, id: 'pack-2', name: 'Nav Pack' })
     expect(repo.list()).toHaveLength(2)
+  })
+})
+
+describe('ProviderRepo', () => {
+  const sampleProvider = {
+    id: 'prov-1',
+    name: 'My OpenAI',
+    type: 'openai-compatible' as const,
+    apiKey: 'sk-test-123',
+    baseUrl: 'https://api.openai.com/v1',
+    model: 'gpt-4',
+  }
+
+  it('creates and retrieves a provider', () => {
+    const repo = new ProviderRepo(db)
+    const created = repo.create(sampleProvider)
+    expect(created.id).toBe('prov-1')
+    expect(created.createdAt).toBeDefined()
+
+    const found = repo.getById('prov-1')
+    expect(found).toBeDefined()
+    expect(found!.name).toBe('My OpenAI')
+    expect(found!.type).toBe('openai-compatible')
+    expect(found!.apiKey).toBe('sk-test-123')
+    expect(found!.baseUrl).toBe('https://api.openai.com/v1')
+    expect(found!.model).toBe('gpt-4')
+  })
+
+  it('lists all providers', () => {
+    const repo = new ProviderRepo(db)
+    repo.create(sampleProvider)
+    repo.create({ ...sampleProvider, id: 'prov-2', name: 'Mock Provider', type: 'mock', apiKey: null, baseUrl: null, model: null })
+    expect(repo.list()).toHaveLength(2)
+  })
+
+  it('updates provider fields', () => {
+    const repo = new ProviderRepo(db)
+    repo.create(sampleProvider)
+    const updated = repo.update('prov-1', { name: 'Renamed', model: 'gpt-3.5-turbo' })
+    expect(updated).toBeDefined()
+    expect(updated!.name).toBe('Renamed')
+    expect(updated!.model).toBe('gpt-3.5-turbo')
+    expect(updated!.apiKey).toBe('sk-test-123') // unchanged
+
+    const fetched = repo.getById('prov-1')
+    expect(fetched!.name).toBe('Renamed')
+    expect(fetched!.model).toBe('gpt-3.5-turbo')
+  })
+
+  it('deletes a provider', () => {
+    const repo = new ProviderRepo(db)
+    repo.create(sampleProvider)
+    expect(repo.delete('prov-1')).toBe(true)
+    expect(repo.getById('prov-1')).toBeUndefined()
+  })
+
+  it('returns undefined for missing provider', () => {
+    const repo = new ProviderRepo(db)
+    expect(repo.getById('nope')).toBeUndefined()
+  })
+
+  it('returns false when deleting non-existent provider', () => {
+    const repo = new ProviderRepo(db)
+    expect(repo.delete('nope')).toBe(false)
+  })
+
+  it('returns undefined when updating non-existent provider', () => {
+    const repo = new ProviderRepo(db)
+    expect(repo.update('nope', { name: 'x' })).toBeUndefined()
   })
 })

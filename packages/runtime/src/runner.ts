@@ -2,6 +2,7 @@ import type { Recipe, Run, RunEvent } from '@quokka/shared'
 import type { BrowserBridge } from './bridge.js'
 import { RunEmitter } from './emitter.js'
 import { StepExecutor } from './executor.js'
+import { checkGuards } from './guard-checker.js'
 import { transition } from './state-machine.js'
 
 function makeEventId(): string {
@@ -44,6 +45,21 @@ export class RecipeRunner {
     this.emitEvent('run_started', run)
 
     try {
+      // Guard enforcement: check preconditions before executing any steps
+      if (recipe.guards && recipe.guards.length > 0) {
+        const guardResult = await checkGuards(recipe.guards, this.bridge)
+        if (!guardResult.passed) {
+          run.status = transition(run.status, 'error')
+          run.error = 'Guard check failed'
+          run.finishedAt = new Date().toISOString()
+          this.emitEvent('guard_failed', run, undefined, { results: guardResult.results })
+          this.emitEvent('run_failed', run)
+          this.currentRun = run
+          return run
+        }
+        this.emitEvent('guard_passed', run, undefined, { results: guardResult.results })
+      }
+
       for (let i = 0; i < recipe.steps.length; i++) {
         if (this.currentRun.status === 'failed') break
 

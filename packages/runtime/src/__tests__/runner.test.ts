@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import type { Recipe, RunEvent } from '@quokka/shared'
+import type { Guard, Recipe, RunEvent } from '@quokka/shared'
 import type { BrowserBridge } from '../bridge.js'
 import { RunEmitter } from '../emitter.js'
 import { RecipeRunner } from '../runner.js'
@@ -122,5 +122,82 @@ describe('RecipeRunner', () => {
     expect(run.error).toBe('Element not found')
     expect(events.some((e) => e.type === 'step_failed')).toBe(true)
     expect(events.some((e) => e.type === 'run_failed')).toBe(true)
+  })
+})
+
+describe('RecipeRunner guard enforcement', () => {
+  it('completes run and emits guard_passed when guards pass', async () => {
+    const bridge = createMockBridge()
+    const emitter = new RunEmitter()
+    const events: RunEvent[] = []
+
+    emitter.on('guard_passed', (e) => events.push(e))
+    emitter.on('run_completed', (e) => events.push(e))
+
+    const recipe: Recipe = {
+      ...createTestRecipe(),
+      guards: [
+        { type: 'url', expect: 'example.com', timeout: 5000 },
+      ],
+    }
+
+    const runner = new RecipeRunner(bridge, emitter)
+    const run = await runner.start(recipe, { url: 'https://example.com/page' })
+
+    expect(run.status).toBe('completed')
+    expect(events.some((e) => e.type === 'guard_passed')).toBe(true)
+    expect(events.some((e) => e.type === 'run_completed')).toBe(true)
+  })
+
+  it('fails immediately and emits guard_failed when guards fail, no steps executed', async () => {
+    const bridge = createMockBridge()
+    ;(bridge.getUrl as ReturnType<typeof vi.fn>).mockResolvedValue('https://wrong-site.com')
+    const emitter = new RunEmitter()
+    const events: RunEvent[] = []
+
+    emitter.on('guard_failed', (e) => events.push(e))
+    emitter.on('run_failed', (e) => events.push(e))
+    emitter.on('step_started', (e) => events.push(e))
+
+    const recipe: Recipe = {
+      ...createTestRecipe(),
+      guards: [
+        { type: 'url', expect: 'example.com', timeout: 5000 },
+      ],
+    }
+
+    const runner = new RecipeRunner(bridge, emitter)
+    const run = await runner.start(recipe, { url: 'https://example.com/page' })
+
+    expect(run.status).toBe('failed')
+    expect(run.error).toBe('Guard check failed')
+    expect(events.some((e) => e.type === 'guard_failed')).toBe(true)
+    expect(events.some((e) => e.type === 'run_failed')).toBe(true)
+    // No steps should have been started
+    expect(events.some((e) => e.type === 'step_started')).toBe(false)
+    expect(bridge.navigate).not.toHaveBeenCalled()
+    expect(bridge.click).not.toHaveBeenCalled()
+  })
+
+  it('skips guard checking when recipe has no guards (backward compatible)', async () => {
+    const bridge = createMockBridge()
+    const emitter = new RunEmitter()
+    const events: RunEvent[] = []
+
+    emitter.on('guard_passed', (e) => events.push(e))
+    emitter.on('guard_failed', (e) => events.push(e))
+    emitter.on('run_completed', (e) => events.push(e))
+
+    const recipe = createTestRecipe() // guards: []
+
+    const runner = new RecipeRunner(bridge, emitter)
+    const run = await runner.start(recipe, { url: 'https://example.com/page' })
+
+    expect(run.status).toBe('completed')
+    // No guard events emitted
+    expect(events.some((e) => e.type === 'guard_passed')).toBe(false)
+    expect(events.some((e) => e.type === 'guard_failed')).toBe(false)
+    // getUrl not called since no guards
+    expect(bridge.getUrl).not.toHaveBeenCalled()
   })
 })

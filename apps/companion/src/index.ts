@@ -1,16 +1,21 @@
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
-import { createDb, RecipeRepo, RunRepo, EventRepo } from '@quokka/storage'
+import { createDb, RecipeRepo, RunRepo, EventRepo, ProviderRepo } from '@quokka/storage'
+import { ModelRouter } from '@quokka/model-router'
 import { loadConfig } from './config.js'
 import { recipesPlugin } from './routes/recipes.js'
 import { runsPlugin } from './routes/runs.js'
 import { compilePlugin } from './routes/compile.js'
 import { providersPlugin } from './routes/providers.js'
+import { generatePlugin } from './routes/generate.js'
+import { eventsStreamPlugin } from './routes/events-stream.js'
 
 export interface AppContext {
   recipeRepo: RecipeRepo
   runRepo: RunRepo
   eventRepo: EventRepo
+  providerRepo: ProviderRepo
+  modelRouter: ModelRouter | null
 }
 
 declare module 'fastify' {
@@ -25,10 +30,31 @@ export async function buildApp(dbPath?: string) {
   await app.register(cors, { origin: true })
 
   const db = createDb(dbPath)
+  const providerRepo = new ProviderRepo(db)
+
+  // Initialize ModelRouter from persisted providers
+  const storedProviders = providerRepo.list()
+  let modelRouter: ModelRouter | null = null
+  if (storedProviders.length > 0) {
+    modelRouter = new ModelRouter()
+    for (const p of storedProviders) {
+      modelRouter.register({
+        id: p.id,
+        name: p.name,
+        type: p.type as 'openai-compatible' | 'mock',
+        apiKey: p.apiKey ?? undefined,
+        baseUrl: p.baseUrl ?? undefined,
+        model: p.model ?? undefined,
+      })
+    }
+  }
+
   const ctx: AppContext = {
     recipeRepo: new RecipeRepo(db),
     runRepo: new RunRepo(db),
     eventRepo: new EventRepo(db),
+    providerRepo: providerRepo,
+    modelRouter,
   }
 
   app.decorate('ctx', ctx)
@@ -37,6 +63,8 @@ export async function buildApp(dbPath?: string) {
   await app.register(runsPlugin)
   await app.register(compilePlugin)
   await app.register(providersPlugin)
+  await app.register(generatePlugin)
+  await app.register(eventsStreamPlugin)
 
   return app
 }

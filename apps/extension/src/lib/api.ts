@@ -1,5 +1,14 @@
 import type { Recipe, Run } from '@quokka/shared'
 
+export interface ProviderConfig {
+  id: string
+  name: string
+  type: 'openai-compatible' | 'mock'
+  apiKey?: string
+  baseUrl?: string
+  model?: string
+}
+
 const BASE_URL = 'http://localhost:7749'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -29,6 +38,21 @@ export function createRecipe(recipe: Omit<Recipe, 'id'>): Promise<Recipe> {
     method: 'POST',
     body: JSON.stringify(recipe),
   })
+}
+
+export function exportRecipe(id: string): Promise<Recipe> {
+  return request(`/api/recipes/${id}/export`)
+}
+
+export function importRecipe(recipe: unknown): Promise<Recipe> {
+  return request('/api/recipes/import', {
+    method: 'POST',
+    body: JSON.stringify(recipe),
+  })
+}
+
+export function exportAllRecipes(): Promise<Recipe[]> {
+  return request('/api/recipes/export/all')
 }
 
 export function createRun(recipeId: string, slotValues: Record<string, string>): Promise<Run> {
@@ -62,9 +86,37 @@ export function compileTrace(trace: CompileTracePayload): Promise<Recipe> {
 
 export async function checkHealth(): Promise<boolean> {
   try {
-    await fetch(`${BASE_URL}/health`)
+    await fetch(`${BASE_URL}/api/health`)
     return true
   } catch {
     return false
   }
+}
+
+export function generateRecipe(prompt: string, providerId?: string): Promise<Recipe> {
+  return request('/api/generate', {
+    method: 'POST',
+    body: JSON.stringify({ prompt, providerId }),
+  })
+}
+
+export function getProviders(): Promise<ProviderConfig[]> {
+  return request('/api/providers')
+}
+
+export function createProvider(config: ProviderConfig): Promise<ProviderConfig> {
+  return request('/api/providers', {
+    method: 'POST',
+    body: JSON.stringify(config),
+  })
+}
+
+export function deleteProvider(id: string): Promise<void> {
+  return request(`/api/providers/${id}`, {
+    method: 'DELETE',
+  })
+}
+
+export function getEventStreamUrl(runId: string): string {
+  return `${BASE_URL}/api/runs/${runId}/events/stream`
 }

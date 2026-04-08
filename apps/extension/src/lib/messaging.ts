@@ -4,6 +4,10 @@ export enum MessageType {
   RESUME_CHECKPOINT = 'RESUME_CHECKPOINT',
   COMPILE_TRACE = 'COMPILE_TRACE',
 
+  // Checkpoint flow
+  CHECKPOINT_PENDING = 'CHECKPOINT_PENDING',
+  CHECKPOINT_RESPONSE = 'CHECKPOINT_RESPONSE',
+
   // Content script messages
   BRIDGE_CALL = 'BRIDGE_CALL',
   START_WATCH = 'START_WATCH',
@@ -26,6 +30,17 @@ export interface BridgeCallPayload {
 export interface StartRunPayload {
   recipeId: string
   slotValues: Record<string, string>
+}
+
+export interface CheckpointPendingPayload {
+  runId: string
+  stepIndex: number
+  message: string
+}
+
+export interface CheckpointResponsePayload {
+  runId: string
+  approved: boolean
 }
 
 export function sendToBackground<T = unknown>(message: Message): Promise<T> {

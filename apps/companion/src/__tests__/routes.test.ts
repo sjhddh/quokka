@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import Fastify, { type FastifyInstance } from 'fastify'
 import cors from '@fastify/cors'
-import { createDb, RecipeRepo, RunRepo, EventRepo } from '@quokka/storage'
+import { createDb, RecipeRepo, RunRepo, EventRepo, ProviderRepo } from '@quokka/storage'
+import { RecipeSchema } from '@quokka/shared'
 import type { Recipe } from '@quokka/shared'
 import { recipesPlugin } from '../routes/recipes.js'
 import { runsPlugin } from '../routes/runs.js'
@@ -20,6 +21,8 @@ beforeAll(async () => {
     recipeRepo: new RecipeRepo(db),
     runRepo: new RunRepo(db),
     eventRepo: new EventRepo(db),
+    providerRepo: new ProviderRepo(db),
+    modelRouter: null,
   }
   app.decorate('ctx', ctx)
 
@@ -167,6 +170,66 @@ describe('Runs', () => {
   })
 })
 
+describe('Provider CRUD', () => {
+  const sampleProvider = {
+    id: 'prov-1',
+    name: 'Test OpenAI',
+    type: 'openai-compatible',
+    apiKey: 'sk-test',
+    baseUrl: 'https://api.openai.com/v1',
+    model: 'gpt-4',
+  }
+
+  it('POST /api/providers — creates a provider', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/providers',
+      payload: sampleProvider,
+    })
+    expect(res.statusCode).toBe(201)
+    const body = res.json()
+    expect(body.id).toBe('prov-1')
+    expect(body.name).toBe('Test OpenAI')
+    expect(body.type).toBe('openai-compatible')
+    expect(body.apiKey).toBe('sk-test')
+  })
+
+  it('GET /api/providers — lists providers', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/providers' })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body).toHaveLength(1)
+    expect(body[0].id).toBe('prov-1')
+  })
+
+  it('POST /api/providers — creates a second provider', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/providers',
+      payload: { id: 'prov-2', name: 'Mock', type: 'mock' },
+    })
+    expect(res.statusCode).toBe(201)
+    expect(res.json().id).toBe('prov-2')
+
+    const list = await app.inject({ method: 'GET', url: '/api/providers' })
+    expect(list.json()).toHaveLength(2)
+  })
+
+  it('DELETE /api/providers/:id — deletes a provider', async () => {
+    const res = await app.inject({ method: 'DELETE', url: '/api/providers/prov-1' })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().ok).toBe(true)
+
+    const list = await app.inject({ method: 'GET', url: '/api/providers' })
+    expect(list.json()).toHaveLength(1)
+  })
+
+  it('DELETE /api/providers/:id — 404 for missing', async () => {
+    const res = await app.inject({ method: 'DELETE', url: '/api/providers/nope' })
+    expect(res.statusCode).toBe(404)
+  })
+})
+
 describe('POST /api/compile', () => {
   it('compiles a trace into a recipe', async () => {
     const trace = [
@@ -203,5 +266,89 @@ describe('POST /api/compile', () => {
     expect(recipe.steps.length).toBeGreaterThanOrEqual(2)
     expect(recipe.hosts).toContain('example.com')
     expect(recipe.meta.createdFrom).toBe('watch')
+  })
+})
+
+describe('Recipe Import/Export', () => {
+  const exportRecipe: Recipe = {
+    id: 'export-test-1',
+    name: 'Export Test',
+    version: '0.1.0',
+    hosts: ['example.com'],
+    slots: [],
+    guards: [],
+    steps: [
+      { type: 'navigate', url: 'https://example.com', description: 'Go to example' },
+    ],
+    meta: { createdFrom: 'code', tags: ['export'] },
+  }
+
+  it('GET /api/recipes/:id/export — returns valid JSON matching RecipeSchema', async () => {
+    // Create recipe first
+    await app.inject({
+      method: 'POST',
+      url: '/api/recipes',
+      payload: exportRecipe,
+    })
+
+    const res = await app.inject({ method: 'GET', url: '/api/recipes/export-test-1/export' })
+    expect(res.statusCode).toBe(200)
+    expect(res.headers['content-type']).toContain('application/json')
+    expect(res.headers['content-disposition']).toContain('attachment')
+    expect(res.headers['content-disposition']).toContain('recipe-')
+
+    const body = res.json()
+    const parsed = RecipeSchema.safeParse(body)
+    expect(parsed.success).toBe(true)
+    expect(body.name).toBe('Export Test')
+  })
+
+  it('GET /api/recipes/:id/export — 404 for non-existent recipe', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/recipes/does-not-exist/export' })
+    expect(res.statusCode).toBe(404)
+  })
+
+  it('POST /api/recipes/import — 201 for valid recipe JSON, assigns new id', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/recipes/import',
+      payload: exportRecipe,
+    })
+    expect(res.statusCode).toBe(201)
+    const body = res.json()
+    // Should have a new id, not the original
+    expect(body.id).not.toBe('export-test-1')
+    expect(body.id).toBeDefined()
+    expect(body.name).toBe('Export Test')
+    expect(body.meta.createdFrom).toBe('import')
+  })
+
+  it('POST /api/recipes/import — 400 for invalid JSON', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/recipes/import',
+      payload: { name: 'Missing required fields' },
+    })
+    expect(res.statusCode).toBe(400)
+    const body = res.json()
+    expect(body.error).toBe('Validation failed')
+    expect(body.details).toBeDefined()
+  })
+
+  it('GET /api/recipes/export/all — returns array of valid recipes', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/recipes/export/all' })
+    expect(res.statusCode).toBe(200)
+    expect(res.headers['content-type']).toContain('application/json')
+    expect(res.headers['content-disposition']).toContain('attachment')
+
+    const body = res.json()
+    expect(Array.isArray(body)).toBe(true)
+    expect(body.length).toBeGreaterThan(0)
+
+    // Every recipe in the array should be valid
+    for (const recipe of body) {
+      const parsed = RecipeSchema.safeParse(recipe)
+      expect(parsed.success).toBe(true)
+    }
   })
 })

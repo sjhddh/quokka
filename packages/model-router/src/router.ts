@@ -24,6 +24,15 @@ export class ModelRouter {
     }
   }
 
+  unregister(id: string): boolean {
+    const existed = this.providers.delete(id)
+    if (this.defaultId === id) {
+      const first = this.providers.keys().next()
+      this.defaultId = first.done ? undefined : first.value
+    }
+    return existed
+  }
+
   route(providerId?: string): ModelProvider {
     const id = providerId ?? this.defaultId
     if (!id) {

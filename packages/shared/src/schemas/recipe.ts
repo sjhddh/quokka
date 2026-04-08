@@ -84,7 +84,7 @@ export const RecipeSchema = z.object({
   guards: z.array(GuardSchema),
   steps: z.array(StepSchema),
   meta: z.object({
-    createdFrom: z.enum(['watch', 'prompt', 'code']),
+    createdFrom: z.enum(['watch', 'prompt', 'code', 'import']),
     tags: z.array(z.string()),
     pack: z.string().optional(),
   }),
