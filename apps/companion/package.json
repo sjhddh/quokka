@@ -1,0 +1,24 @@
+{
+  "name": "@quokka/companion",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "fastify": "^5.2.1",
+    "@fastify/cors": "^11.0.1",
+    "@quokka/shared": "workspace:*",
+    "@quokka/storage": "workspace:*",
+    "@quokka/compiler": "workspace:*",
+    "@quokka/verifier": "workspace:*",
+    "@quokka/model-router": "workspace:*",
+    "nanoid": "^5.0.9"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.3"
+  }
+}

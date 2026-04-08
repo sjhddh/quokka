@@ -1,0 +1,7 @@
+export type { TraceEntry, WatchTrace } from './types.js'
+export { deduplicateTrace } from './dedup.js'
+export { refineSelector } from './selector.js'
+export { inferSlots } from './slots.js'
+export type { InferredSlot } from './slots.js'
+export { compileTrace } from './compiler.js'
+export type { CompileOptions } from './compiler.js'
