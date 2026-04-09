@@ -1,8 +1,26 @@
+<div align="center">
+
 # Quokka
 
-**Watch once. Run forever.**
+### Watch once. Run forever.
 
-Open-source browser-native agent framework for teaching, running, and sharing reusable browser tasks.
+Quokka turns browser actions into reusable automation recipes.\
+Record a workflow once, replay it forever — with AI-powered natural language commands, visual recording, and headless execution.
+
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Build: passing](https://img.shields.io/badge/build-passing-brightgreen.svg)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue.svg)
+![Tests](https://img.shields.io/badge/tests-117%20passing-brightgreen.svg)
+![pnpm](https://img.shields.io/badge/pnpm-monorepo-orange.svg)
+![Chrome MV3](https://img.shields.io/badge/Chrome-Manifest%20V3-4285F4.svg)
+
+</div>
+
+---
+
+## What is Quokka?
+
+Quokka is an open-source, browser-native agent framework for teaching, running, and sharing reusable browser tasks. It lives inside your browser as a Chrome extension, records your actions into portable JSON recipes, and replays them on demand — locally, with no cloud dependency or account required.
 
 ---
 
@@ -15,6 +33,8 @@ Quokka is not another chat box bolted onto your browser. It starts from the page
 - **Run** — Replay a recipe with one click, with human checkpoints where it matters.
 
 No cloud dependency. No account required. Your recipes are portable JSON that you own.
+
+---
 
 ## Quick Start
 
@@ -31,32 +51,37 @@ pnpm build
 
 # Start the companion server
 pnpm --filter @quokka/companion dev
-
-# Load the extension in Chrome:
-# 1. Open chrome://extensions
-# 2. Enable "Developer mode"
-# 3. Click "Load unpacked" → select apps/extension/dist
 ```
+
+Then load the extension in Chrome:
+
+1. Open `chrome://extensions`
+2. Enable **Developer mode**
+3. Click **Load unpacked** and select `apps/extension/dist`
+
+---
 
 ## Architecture
 
 ```
 ┌─────────────────┐      WebSocket       ┌──────────────┐
-│                  │◄───────────────────►│              │
-│  Chrome Extension │                     │  Companion   │
-│  (content + popup)│                     │  (Node server)│
-│                  │                      │              │
-└────────┬─────────┘                      └──────┬───────┘
-         │                                       │
-         │  imports                               │  imports
-         ▼                                       ▼
+│                 │◄───────────────────►│              │
+│  Chrome Extension│                     │  Companion   │
+│  (content + popup)│                    │  (Node server)│
+│                 │                      │              │
+└────────┬────────┘                      └──────┬───────┘
+         │                                      │
+         │  imports                              │  imports
+         ▼                                      ▼
 ┌──────────────────────────────────────────────────────────┐
-│                      Packages                            │
+│                       Packages                           │
 │                                                          │
 │  shared ── recipe-dsl ── compiler ── runtime ── verifier │
-│              model-router    storage    starter-packs     │
+│       model-router    storage    headless    starter-packs│
 └──────────────────────────────────────────────────────────┘
 ```
+
+---
 
 ## Core Concepts
 
@@ -68,6 +93,26 @@ pnpm --filter @quokka/companion dev
 | **Guard** | A precondition checked before a recipe runs — URL match, DOM element exists, etc. |
 | **Checkpoint** | A pause point requiring human review before continuing. |
 | **Pack** | A named collection of recipes bundled together for distribution. |
+
+---
+
+## Packages
+
+| Package | Description |
+|---------|-------------|
+| `@quokka/shared` | Types, schemas, and event definitions (Zod) |
+| `@quokka/recipe-dsl` | Fluent builder API for authoring recipes |
+| `@quokka/compiler` | Natural language prompt to recipe compiler |
+| `@quokka/runtime` | Step executor engine for running recipes |
+| `@quokka/verifier` | Recipe validation and test harness |
+| `@quokka/model-router` | LLM provider abstraction layer |
+| `@quokka/storage` | Recipe and run persistence |
+| `@quokka/headless` | Headless browser execution via Puppeteer |
+| `@quokka/starter-packs` | Curated recipe collections to get started |
+| `@quokka/companion` | Node.js WebSocket server (app) |
+| `@quokka/extension` | Chrome extension — popup and content scripts (app) |
+
+---
 
 ## Example Recipe
 
@@ -90,26 +135,7 @@ const scrapeLinks = recipe('Extract Page Links')
   .build()
 ```
 
-## Project Structure
-
-```
-quokka/
-├── apps/
-│   ├── companion/          # Node.js WebSocket server
-│   └── extension/          # Chrome extension (popup + content scripts)
-├── packages/
-│   ├── shared/             # Types, schemas, events (Zod)
-│   ├── recipe-dsl/         # Fluent builder API for recipes
-│   ├── compiler/           # Prompt → recipe compiler
-│   ├── runtime/            # Step executor engine
-│   ├── verifier/           # Recipe validation & testing
-│   ├── model-router/       # LLM provider abstraction
-│   ├── storage/            # Recipe & run persistence
-│   └── starter-packs/      # Curated recipe collections
-├── tsconfig.base.json
-├── vitest.workspace.ts
-└── pnpm-workspace.yaml
-```
+---
 
 ## Development
 
@@ -130,9 +156,13 @@ pnpm dev
 pnpm lint
 ```
 
+---
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and contribution guidelines.
+
+---
 
 ## License
 

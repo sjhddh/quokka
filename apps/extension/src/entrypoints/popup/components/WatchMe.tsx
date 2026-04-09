@@ -37,7 +37,7 @@ export default function WatchMe() {
             payload: trace,
           })
           if (result) {
-            setCompiled(result)
+            setCompiled(result as CompiledResult)
           }
         }
       }
