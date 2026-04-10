@@ -5,9 +5,10 @@ interface Props {
   onConfirm: () => void
   onCancel: () => void
   importing: boolean
+  error?: string | null
 }
 
-export default function ImportPreviewDialog({ previews, onConfirm, onCancel, importing }: Props) {
+export default function ImportPreviewDialog({ previews, onConfirm, onCancel, importing, error }: Props) {
   const isBulk = previews.length > 1
 
   return (
@@ -18,6 +19,12 @@ export default function ImportPreviewDialog({ previews, onConfirm, onCancel, imp
             Import {isBulk ? `${previews.length} Recipes` : 'Recipe'}
           </h3>
         </div>
+
+        {error && (
+          <div className="mx-4 mt-3 text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+            {error}
+          </div>
+        )}
 
         <div className="px-4 py-3 space-y-3 max-h-60 overflow-y-auto">
           {previews.map((preview, i) => (

@@ -12,6 +12,7 @@ import * as api from '../../lib/api'
 import * as localStorage from '../../lib/local-storage'
 import { compileTrace as compileTraceLocal } from '@quokka/core/compiler'
 import type { WatchTrace } from '@quokka/core/compiler'
+import { DEMO_RECIPES, findStarterForUrl } from '../../lib/demo-recipes'
 
 const CHECKPOINT_NOTIFICATION_PREFIX = 'quokka-checkpoint-'
 
@@ -75,7 +76,7 @@ export default defineBackground(() => {
       case MessageType.START_RUN: {
         const { recipeId, slotValues } = payload as StartRunPayload
         handleStartRun(recipeId, slotValues)
-          .then((result) => sendResponse({ ok: true, result }))
+          .then((run) => sendResponse({ ok: true, run }))
           .catch((err) => sendResponse({ ok: false, error: String(err) }))
         return true
       }
@@ -154,6 +155,29 @@ export default defineBackground(() => {
     }
   })
 
+  // Seed demo recipes & domain-aware starter on first install
+  chrome.runtime.onInstalled.addListener(async (details) => {
+    if (details.reason !== 'install') return
+
+    // Save demo recipes
+    for (const recipe of DEMO_RECIPES) {
+      await localStorage.saveRecipe(recipe)
+    }
+
+    // Check active tab for domain-aware starter suggestion
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+      if (tab?.url) {
+        const suggestion = findStarterForUrl(tab.url)
+        if (suggestion) {
+          await localStorage.saveRecipe(suggestion.recipe)
+        }
+      }
+    } catch {
+      // Tab query can fail in some contexts — ignore
+    }
+  })
+
   // Handle notification button clicks (approve/reject)
   chrome.notifications.onButtonClicked.addListener((notificationId, buttonIndex) => {
     if (!notificationId.startsWith(CHECKPOINT_NOTIFICATION_PREFIX)) return
@@ -168,14 +192,6 @@ export default defineBackground(() => {
     }
   })
 })
-
-function resolveSelector(target: { css?: string; testId?: string; ariaLabel?: string; text?: string }): string {
-  if (target.css) return target.css
-  if (target.testId) return `[data-testid="${target.testId}"]`
-  if (target.ariaLabel) return `[aria-label="${target.ariaLabel}"]`
-  if (target.text) return target.text
-  return ''
-}
 
 async function handleLocalReplay(
   recipe: import('@quokka/shared').Recipe,
@@ -238,7 +254,8 @@ async function handleLocalReplay(
 async function handleStartRun(
   recipeId: string,
   slotValues: Record<string, string>
-): Promise<void> {
+): Promise<import('@quokka/shared').Run> {
+  // Resolve recipe: try companion first, fall back to local storage
   let recipe: import('@quokka/shared').Recipe
   try {
     recipe = await api.getRecipe(recipeId)
@@ -247,110 +264,7 @@ async function handleStartRun(
     if (!local) throw new Error(`Recipe ${recipeId} not found`)
     recipe = local
   }
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-  if (!tab?.id) throw new Error('No active tab')
 
-  // Generate a runId for checkpoint tracking
-  const runId = `run_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-
-  for (let i = 0; i < recipe.steps.length; i++) {
-    const step = recipe.steps[i]
-
-    // Resolve slot templates in values
-    const resolve = (val: string): string =>
-      val.replace(/\{\{(\w+)\}\}/g, (_, key) => slotValues[key] ?? '')
-
-    switch (step.type) {
-      case 'click': {
-        const selector = resolveSelector(step.target)
-        await chrome.tabs.sendMessage(tab.id!, {
-          type: MessageType.BRIDGE_CALL,
-          payload: { method: 'click', selector },
-        })
-        break
-      }
-
-      case 'type': {
-        const selector = step.target.css ?? (step.target.testId
-          ? `[data-testid="${step.target.testId}"]`
-          : '')
-        await chrome.tabs.sendMessage(tab.id!, {
-          type: MessageType.BRIDGE_CALL,
-          payload: { method: 'type', selector, value: resolve(step.value) },
-        })
-        break
-      }
-
-      case 'navigate': {
-        await chrome.tabs.sendMessage(tab.id!, {
-          type: MessageType.BRIDGE_CALL,
-          payload: { method: 'navigate', url: resolve(step.url) },
-        })
-        // Wait for navigation
-        await new Promise((r) => setTimeout(r, 1000))
-        break
-      }
-
-      case 'extract': {
-        const selector = step.target.css ?? (step.target.testId
-          ? `[data-testid="${step.target.testId}"]`
-          : '')
-        await chrome.tabs.sendMessage(tab.id!, {
-          type: MessageType.BRIDGE_CALL,
-          payload: { method: 'extract', selector },
-        })
-        break
-      }
-
-      case 'wait': {
-        const selector = step.target.css ?? (step.target.testId
-          ? `[data-testid="${step.target.testId}"]`
-          : '')
-        await chrome.tabs.sendMessage(tab.id!, {
-          type: MessageType.BRIDGE_CALL,
-          payload: { method: 'waitFor', selector, timeout: step.timeout },
-        })
-        break
-      }
-
-      case 'checkpoint': {
-        const checkpointMessage = step.message ?? 'Checkpoint reached'
-
-        // Send CHECKPOINT_PENDING to popup
-        chrome.runtime.sendMessage({
-          type: MessageType.CHECKPOINT_PENDING,
-          payload: {
-            runId,
-            stepIndex: i,
-            message: checkpointMessage,
-          } satisfies CheckpointPendingPayload,
-        }).catch(() => {
-          // Popup may not be open — notification is the fallback
-        })
-
-        // Create a chrome notification as backup
-        chrome.notifications.create(
-          `${CHECKPOINT_NOTIFICATION_PREFIX}${runId}`,
-          {
-            type: 'basic',
-            iconUrl: chrome.runtime.getURL('icon/128.png'),
-            title: 'Quokka — Checkpoint',
-            message: checkpointMessage,
-            buttons: [{ title: 'Approve' }, { title: 'Reject' }],
-            requireInteraction: true,
-          }
-        )
-
-        // Wait for approval/rejection
-        const approved = await new Promise<boolean>((resolve) => {
-          pendingCheckpoints.set(runId, resolve)
-        })
-
-        if (!approved) {
-          throw new Error('Checkpoint rejected by user')
-        }
-        break
-      }
-    }
-  }
+  // Delegate to the local replay runtime (same path as START_LOCAL_REPLAY)
+  return handleLocalReplay(recipe, slotValues)
 }

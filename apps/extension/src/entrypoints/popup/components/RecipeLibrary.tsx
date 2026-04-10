@@ -20,41 +20,39 @@ export default function RecipeLibrary() {
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null)
   const updateRecipe = useQuokkaStore((s) => s.updateRecipe)
 
+  const [exportError, setExportError] = useState<string | null>(null)
+
   const handleExport = async (id: string) => {
+    setExportError(null)
     try {
-      const exported = await api.exportRecipe(id)
-      const recipe = exported.recipe
-      const safeName = recipe.name.replace(/[^a-zA-Z0-9_-]/g, '_')
-      const json = JSON.stringify(exported, null, 2)
-      const blob = new Blob([json], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${safeName}.quokka.json`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    } catch {
-      // silently fail for individual export
+      // Try companion export first, fall back to local
+      let recipe: typeof recipes[0] | undefined
+      try {
+        const exported = await api.exportRecipe(id)
+        recipe = exported.recipe
+      } catch {
+        recipe = recipes.find((r) => r.id === id)
+      }
+      if (!recipe) {
+        setExportError('Recipe not found. It may have been deleted.')
+        return
+      }
+      downloadRecipe(recipe)
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : 'Failed to export recipe')
     }
   }
 
   const handleExportAll = async () => {
+    setExportError(null)
     try {
-      const allExports = await api.exportAllRecipes()
-      const json = JSON.stringify(allExports, null, 2)
-      const blob = new Blob([json], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'recipes-all.quokka.json'
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    } catch {
-      // silently fail
+      if (recipes.length === 0) {
+        setExportError('No recipes to export')
+        return
+      }
+      downloadAllRecipes(recipes)
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : 'Failed to export recipes')
     }
   }
 
@@ -81,12 +79,21 @@ export default function RecipeLibrary() {
     setImportError(null)
     try {
       for (const preview of importPreviews) {
-        await api.importRecipe(preview.recipe)
+        try {
+          await api.importRecipe(preview.recipe)
+        } catch {
+          // Companion unavailable — save directly to local storage
+          await import('../../../lib/local-storage').then((ls) =>
+            ls.saveRecipe(preview.recipe),
+          )
+        }
       }
       await fetchRecipes()
       setImportPreviews(null)
     } catch (err) {
-      setImportError(err instanceof Error ? err.message : 'Import failed')
+      setImportError(
+        err instanceof Error ? err.message : 'Failed to save imported recipes to storage.',
+      )
     } finally {
       setImporting(false)
     }
@@ -125,6 +132,7 @@ export default function RecipeLibrary() {
           onConfirm={handleConfirmImport}
           onCancel={handleCancelImport}
           importing={importing}
+          error={importError}
         />
       )}
 
@@ -150,9 +158,15 @@ export default function RecipeLibrary() {
         </button>
       </div>
 
-      {importError && (
+      {importError && !importPreviews && (
         <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
           {importError}
+        </div>
+      )}
+
+      {exportError && (
+        <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+          {exportError}
         </div>
       )}
 
