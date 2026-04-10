@@ -1,0 +1,30 @@
+{
+  "name": "@quokka/runner-playwright",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@quokka/core": "workspace:*",
+    "@quokka/shared": "workspace:*"
+  },
+  "peerDependencies": {
+    "playwright": "^1.50.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.52.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.1.0"
+  }
+}

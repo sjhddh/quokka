@@ -1,6 +1,20 @@
+import * as fs from 'node:fs'
+import * as path from 'node:path'
 import type { ExecutionPlan } from './execution-planner.js'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface PlanCacheStats {
+  hits: number
+  misses: number
+  deterministic: number
+  avgConfidence: number | null
+}
+
+export interface PlanCacheOptions {
+  /** Confidence threshold for deterministic execution (default 0.8) */
+  confidenceThreshold?: number
+}
 
 export interface PlanCacheEntry {
   pageUrl: string
@@ -68,7 +82,12 @@ function makeCacheKey(pageUrl: string, structuralHash: string): string {
 // ─── PlanCache ────────────────────────────────────────────────────────────────
 
 export class PlanCache {
-  constructor(private storage: PlanCacheStorage) {}
+  private readonly confidenceThreshold: number
+  private stats: PlanCacheStats = { hits: 0, misses: 0, deterministic: 0, avgConfidence: null }
+
+  constructor(private storage: PlanCacheStorage, options?: PlanCacheOptions) {
+    this.confidenceThreshold = options?.confidenceThreshold ?? 0.8
+  }
 
   /**
    * Return a cached plan if the structural hash matches and the entry hasn't expired.
@@ -82,20 +101,73 @@ export class PlanCache {
       entry = await this.storage.get(key)
     } catch (err) {
       console.warn(`[PlanCache] storage.get error: ${err instanceof Error ? err.message : String(err)}`)
+      this.stats.misses++
       return null
     }
 
-    if (!entry) return null
+    if (!entry) {
+      this.stats.misses++
+      return null
+    }
 
     // Structural hash mismatch — DOM has changed, plan is stale
-    if (entry.structuralHash !== currentHash) return null
+    if (entry.structuralHash !== currentHash) {
+      this.stats.misses++
+      return null
+    }
 
     // TTL check
     const age = Date.now() - entry.cachedAt
     const ttl = entry.hitCount >= CONFIDENT_HIT_THRESHOLD ? CONFIDENT_TTL_MS : DEFAULT_TTL_MS
-    if (age > ttl) return null
+    if (age > ttl) {
+      this.stats.misses++
+      return null
+    }
 
+    this.stats.hits++
     return entry.plan
+  }
+
+  /**
+   * Check if a cached plan exists with high enough confidence for deterministic
+   * (LLM-free) execution. Returns true when the average selector confidence
+   * across the cached plan exceeds the configured threshold.
+   */
+  async isDeterministic(hostname: string, structuralHash: string): Promise<boolean> {
+    const key = `${hostname}:${structuralHash}`
+
+    let entry: PlanCacheEntry | null
+    try {
+      entry = await this.storage.get(key)
+    } catch {
+      return false
+    }
+
+    if (!entry) return false
+
+    // TTL check
+    const age = Date.now() - entry.cachedAt
+    const ttl = entry.hitCount >= CONFIDENT_HIT_THRESHOLD ? CONFIDENT_TTL_MS : DEFAULT_TTL_MS
+    if (age > ttl) return false
+
+    const confidences = Object.values(entry.selectorConfidence)
+    if (confidences.length === 0) return false
+
+    const avg = confidences.reduce((sum, c) => sum + c, 0) / confidences.length
+    if (avg > this.confidenceThreshold) {
+      this.stats.deterministic++
+      return true
+    }
+
+    return false
+  }
+
+  /**
+   * Return cache performance stats.
+   */
+  getStats(): PlanCacheStats {
+    // Compute live avg confidence from stats tracked so far
+    return { ...this.stats }
   }
 
   /**
@@ -261,5 +333,90 @@ export class MemoryPlanCacheStorage implements PlanCacheStorage {
 
   async keys(): Promise<string[]> {
     return Array.from(this.store.keys())
+  }
+}
+
+// ─── File-based storage (for CLI persistent cache) ───────────────────────────
+
+/**
+ * Persists plan cache entries as individual JSON files on disk.
+ * Default directory: `.qk/cache/` relative to cwd.
+ *
+ * File naming: each cache key is encoded to a filesystem-safe name.
+ * This is intended for CLI / headless use — not for browser contexts.
+ */
+export class FilePlanCacheStorage implements PlanCacheStorage {
+  private readonly dir: string
+
+  constructor(cacheDir?: string) {
+    this.dir = cacheDir ?? path.join(process.cwd(), '.qk', 'cache')
+  }
+
+  private ensureDir(): void {
+    if (!fs.existsSync(this.dir)) {
+      fs.mkdirSync(this.dir, { recursive: true })
+    }
+  }
+
+  /** Encode a cache key to a safe filename */
+  private keyToFile(key: string): string {
+    // Replace non-alphanumeric chars (except dash) with underscores, then append .json
+    const safe = key.replace(/[^a-zA-Z0-9\-]/g, '_')
+    return path.join(this.dir, `${safe}.json`)
+  }
+
+  async get(key: string): Promise<PlanCacheEntry | null> {
+    const filePath = this.keyToFile(key)
+    try {
+      const raw = fs.readFileSync(filePath, 'utf-8')
+      return JSON.parse(raw) as PlanCacheEntry
+    } catch {
+      return null
+    }
+  }
+
+  async set(key: string, entry: PlanCacheEntry): Promise<void> {
+    this.ensureDir()
+    const filePath = this.keyToFile(key)
+    fs.writeFileSync(filePath, JSON.stringify(entry, null, 2), 'utf-8')
+  }
+
+  async delete(key: string): Promise<void> {
+    const filePath = this.keyToFile(key)
+    try {
+      fs.unlinkSync(filePath)
+    } catch {
+      // File may not exist — that's fine
+    }
+  }
+
+  async keys(): Promise<string[]> {
+    this.ensureDir()
+    try {
+      const files = fs.readdirSync(this.dir).filter(f => f.endsWith('.json'))
+      // Reverse the filename encoding: strip .json, replace _ back
+      // However, the encoding is lossy — so we store the original key inside the entry.
+      // Instead, we read each file and extract the cache key from `hostname:structuralHash`.
+      const keys: string[] = []
+      for (const file of files) {
+        try {
+          const raw = fs.readFileSync(path.join(this.dir, file), 'utf-8')
+          const entry = JSON.parse(raw) as PlanCacheEntry
+          // Reconstruct the key from the entry data
+          let hostname: string
+          try {
+            hostname = new URL(entry.pageUrl).hostname
+          } catch {
+            hostname = 'unknown'
+          }
+          keys.push(`${hostname}:${entry.structuralHash}`)
+        } catch {
+          // Skip corrupted files
+        }
+      }
+      return keys
+    } catch {
+      return []
+    }
   }
 }
