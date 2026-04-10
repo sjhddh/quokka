@@ -19,13 +19,13 @@
 ## Phase 1: Foundation (v0.3, ~4 weeks)
 
 ### Build
-- [ ] **Extension-only runtime** — record/replay without companion server or terminal
-- [ ] **Collapse monorepo** to 3 packages: `extension`, `companion`, `shared`
-- [ ] **Floating pill UI** replacing popup (record/play/stop)
-- [ ] **One-click recipe sharing** — `.quokka.json` export + URL scheme import
-- [ ] **Graceful failure** — pause on selector miss, highlight element, Retry/Skip/Fix
-- [ ] **Recipe schema v1** — signed JSON, no eval, allowlisted step types
-- [ ] Companion becomes optional (headless/filesystem only)
+- [x] **Extension-only runtime** — record/replay without companion server or terminal
+- [x] **Collapse monorepo** to 3 packages: `extension`, `companion`, `shared`
+- [x] **Floating pill UI** replacing popup (record/play/stop)
+- [x] **One-click recipe sharing** — `.quokka.json` export + URL scheme import
+- [x] **Graceful failure** — pause on selector miss, highlight element, Retry/Skip/Fix
+- [x] **Recipe schema v1** — signed JSON, no eval, allowlisted step types
+- [x] Companion becomes optional (headless/filesystem only)
 
 ### Do NOT Build
 - NL "Do" mode (feature-flagged, hidden)
@@ -41,12 +41,12 @@
 
 ### Build
 - [ ] **HN launch** — 20 starter recipes, GIF demos, landing page
-- [ ] **5 vertical starter packs** (HR, sales, support, social media, data entry)
-- [ ] **`community-recipes/`** GitHub directory accepting PRs
-- [ ] **Fallback selectors** — aria-label → text content → nth-child (3-deep chain)
-- [ ] **Visual timeline editor** — reorder, delete, edit selectors
-- [ ] **CONTRIBUTING.md** + issue templates + 10 good-first-issues
-- [ ] **BYOK LLM setting** in extension (prep for NL features)
+- [x] **5 vertical starter packs** (HR, sales, support, social media, data entry)
+- [x] **`community-recipes/`** GitHub directory accepting PRs
+- [x] **Fallback selectors** — aria-label → text content → nth-child (3-deep chain)
+- [x] **Visual timeline editor** — reorder, delete, edit selectors
+- [x] **CONTRIBUTING.md** + issue templates + 10 good-first-issues
+- [x] **BYOK LLM setting** in extension (prep for NL features)
 - [ ] CLI package (if demand signal exists)
 
 ### Do NOT Build
