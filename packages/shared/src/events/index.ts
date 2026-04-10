@@ -6,6 +6,8 @@ export const RUN_EVENT_TYPES = {
   STEP_STARTED: 'step_started',
   STEP_SUCCEEDED: 'step_succeeded',
   STEP_FAILED: 'step_failed',
+  STEP_PAUSED: 'step_paused',
+  STEP_RETRYING: 'step_retrying',
   CHECKPOINT_REQUIRED: 'checkpoint_required',
   CHECKPOINT_APPROVED: 'checkpoint_approved',
   CHECKPOINT_REJECTED: 'checkpoint_rejected',
@@ -21,6 +23,8 @@ export interface RunEventMap {
   step_started: RunEvent
   step_succeeded: RunEvent
   step_failed: RunEvent
+  step_paused: RunEvent
+  step_retrying: RunEvent
   checkpoint_required: RunEvent
   checkpoint_approved: RunEvent
   checkpoint_rejected: RunEvent

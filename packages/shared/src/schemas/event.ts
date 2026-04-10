@@ -5,6 +5,8 @@ export const RunEventTypeSchema = z.enum([
   'step_started',
   'step_succeeded',
   'step_failed',
+  'step_paused',
+  'step_retrying',
   'checkpoint_required',
   'checkpoint_approved',
   'checkpoint_rejected',

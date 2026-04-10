@@ -5,6 +5,7 @@ export const RunStatusSchema = z.enum([
   'planning',
   'running',
   'checkpoint_wait',
+  'paused',
   'completed',
   'failed',
 ])

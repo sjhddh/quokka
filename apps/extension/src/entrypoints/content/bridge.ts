@@ -2,7 +2,32 @@ export class ContentBridge {
   async click(selector: string): Promise<void> {
     const el = document.querySelector<HTMLElement>(selector)
     if (!el) throw new Error(`Element not found: ${selector}`)
+
+    // Scroll into view and wait for visibility before clicking
+    el.scrollIntoView({ block: 'center', behavior: 'instant' })
+    await this.waitForVisible(el)
     el.click()
+  }
+
+  private waitForVisible(el: HTMLElement, timeout = 2000): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const rect = el.getBoundingClientRect()
+      if (rect.width > 0 && rect.height > 0) {
+        resolve()
+        return
+      }
+      const start = Date.now()
+      const check = setInterval(() => {
+        const r = el.getBoundingClientRect()
+        if (r.width > 0 && r.height > 0) {
+          clearInterval(check)
+          resolve()
+        } else if (Date.now() - start > timeout) {
+          clearInterval(check)
+          reject(new Error(`Element not visible after ${timeout}ms`))
+        }
+      }, 100)
+    })
   }
 
   async type(selector: string, value: string): Promise<void> {

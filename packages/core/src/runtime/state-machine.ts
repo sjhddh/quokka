@@ -11,11 +11,16 @@ const transitions: TransitionMap = {
   },
   running: {
     checkpoint: 'checkpoint_wait',
+    pause: 'paused',
     complete: 'completed',
   },
   checkpoint_wait: {
     approve: 'running',
     reject: 'failed',
+  },
+  paused: {
+    retry: 'running',
+    skip: 'running',
   },
 }
 
