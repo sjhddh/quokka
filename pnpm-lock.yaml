@@ -45,6 +45,9 @@ importers:
 
   apps/extension:
     dependencies:
+      '@quokka/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@quokka/shared':
         specifier: workspace:*
         version: link:../../packages/shared

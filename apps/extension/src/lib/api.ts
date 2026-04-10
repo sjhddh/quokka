@@ -40,6 +40,13 @@ export function createRecipe(recipe: Omit<Recipe, 'id'>): Promise<Recipe> {
   })
 }
 
+export function updateRecipe(id: string, recipe: Recipe): Promise<Recipe> {
+  return request(`/api/recipes/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(recipe),
+  })
+}
+
 export function exportRecipe(id: string): Promise<QuokkaExport> {
   return request(`/api/recipes/${id}/export`)
 }
@@ -91,6 +98,23 @@ export async function checkHealth(): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+let _companionAvailableCache: { value: boolean; ts: number } | null = null
+const COMPANION_CACHE_TTL = 30_000 // 30 seconds
+
+/**
+ * Cached companion health check. Re-checks at most every 30 seconds.
+ * Call with `force: true` to bypass the cache.
+ */
+export async function isCompanionAvailable(force = false): Promise<boolean> {
+  const now = Date.now()
+  if (!force && _companionAvailableCache && now - _companionAvailableCache.ts < COMPANION_CACHE_TTL) {
+    return _companionAvailableCache.value
+  }
+  const healthy = await checkHealth()
+  _companionAvailableCache = { value: healthy, ts: now }
+  return healthy
 }
 
 export function generateRecipe(prompt: string, providerId?: string): Promise<Recipe> {

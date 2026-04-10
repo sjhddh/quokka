@@ -9,6 +9,9 @@ import {
 import { dispatchReplay, type ReplayCallbacks } from '../../runtime/step-dispatcher'
 import type { StepResult } from '../../runtime/content-executor'
 import * as api from '../../lib/api'
+import * as localStorage from '../../lib/local-storage'
+import { compileTrace as compileTraceLocal } from '@quokka/core'
+import type { WatchTrace } from '@quokka/core'
 
 const CHECKPOINT_NOTIFICATION_PREFIX = 'quokka-checkpoint-'
 
@@ -49,7 +52,8 @@ async function handleToggleRecording(): Promise<{
 
     if (trace) {
       try {
-        const recipe = await api.compileTrace(trace as api.CompileTracePayload)
+        const recipe = compileTraceLocal(trace as WatchTrace)
+        await localStorage.saveRecipe(recipe)
         return {
           ok: true,
           isRecording: false,
@@ -96,12 +100,14 @@ export default defineBackground(() => {
       }
 
       case MessageType.COMPILE_TRACE: {
-        api
-          .compileTrace(payload as api.CompileTracePayload)
-          .then((recipe) =>
-            sendResponse({ name: recipe.name, stepCount: recipe.steps.length })
-          )
-          .catch((err) => sendResponse({ ok: false, error: String(err) }))
+        try {
+          const recipe = compileTraceLocal(payload as WatchTrace)
+          localStorage.saveRecipe(recipe)
+            .then(() => sendResponse({ name: recipe.name, stepCount: recipe.steps.length }))
+            .catch((err) => sendResponse({ ok: false, error: String(err) }))
+        } catch (err) {
+          sendResponse({ ok: false, error: String(err) })
+        }
         return true
       }
 
@@ -113,9 +119,18 @@ export default defineBackground(() => {
       }
 
       case MessageType.GET_RECIPES: {
-        api
-          .getRecipes()
-          .then((recipes) => sendResponse({ ok: true, recipes }))
+        Promise.all([
+          localStorage.getRecipes(),
+          api.getRecipes().catch(() => [] as import('@quokka/shared').Recipe[]),
+        ])
+          .then(([localRecipes, companionRecipes]) => {
+            // Merge: companion recipes win on ID collision
+            const byId = new Map(localRecipes.map((r) => [r.id, r]))
+            for (const r of companionRecipes) {
+              byId.set(r.id, r)
+            }
+            sendResponse({ ok: true, recipes: Array.from(byId.values()) })
+          })
           .catch(() => sendResponse({ ok: true, recipes: [] }))
         return true
       }
@@ -224,7 +239,14 @@ async function handleStartRun(
   recipeId: string,
   slotValues: Record<string, string>
 ): Promise<void> {
-  const recipe = await api.getRecipe(recipeId)
+  let recipe: import('@quokka/shared').Recipe
+  try {
+    recipe = await api.getRecipe(recipeId)
+  } catch {
+    const local = await localStorage.getRecipe(recipeId)
+    if (!local) throw new Error(`Recipe ${recipeId} not found`)
+    recipe = local
+  }
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
   if (!tab?.id) throw new Error('No active tab')
 

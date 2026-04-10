@@ -8,6 +8,7 @@
     "build": "wxt build"
   },
   "dependencies": {
+    "@quokka/core": "workspace:*",
     "@quokka/shared": "workspace:*",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

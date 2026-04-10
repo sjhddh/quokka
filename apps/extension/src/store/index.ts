@@ -2,6 +2,9 @@ import { create } from 'zustand'
 import type { Recipe, Run, RunEvent } from '@quokka/shared'
 import * as api from '../lib/api'
 import type { ProviderConfig } from '../lib/api'
+import * as localStorage from '../lib/local-storage'
+import * as llmStorage from '../lib/llm-storage'
+import { generateWithProvider } from '../lib/llm-client'
 import { sendToBackground, MessageType, type CheckpointPendingPayload, type ReplayEventPayload } from '../lib/messaging'
 
 export interface PendingCheckpoint {
@@ -22,8 +25,10 @@ export interface QuokkaStore {
   generatedRecipe: Recipe | null
   generateError: string | null
   providers: ProviderConfig[]
+  activeProviderId: string | null
   _eventSource: EventSource | null
   fetchRecipes: () => Promise<void>
+  saveRecipeLocally: (recipe: Recipe) => Promise<void>
   startRun: (recipeId: string, slotValues: Record<string, string>) => Promise<void>
   startLocalReplay: (recipe: Recipe, slotValues: Record<string, string>) => Promise<void>
   setUseLocalRuntime: (useLocal: boolean) => void
@@ -35,6 +40,7 @@ export interface QuokkaStore {
   fetchProviders: () => Promise<void>
   saveProvider: (config: ProviderConfig) => Promise<void>
   removeProvider: (id: string) => Promise<void>
+  setActiveProvider: (id: string) => Promise<void>
 }
 
 export const useQuokkaStore = create<QuokkaStore>((set, get) => ({
@@ -49,18 +55,33 @@ export const useQuokkaStore = create<QuokkaStore>((set, get) => ({
   generatedRecipe: null,
   generateError: null,
   providers: [],
+  activeProviderId: null,
   _eventSource: null,
 
   fetchRecipes: async () => {
     try {
-      const [recipes, healthy] = await Promise.all([
+      const [localRecipes, companionRecipes, healthy] = await Promise.all([
+        localStorage.getRecipes(),
         api.getRecipes().catch(() => [] as Recipe[]),
         api.checkHealth(),
       ])
-      set({ recipes, companionConnected: healthy })
+      // Merge: local recipes first, companion overwrites on ID collision
+      const byId = new Map(localRecipes.map((r) => [r.id, r]))
+      for (const r of companionRecipes) {
+        byId.set(r.id, r)
+      }
+      set({ recipes: Array.from(byId.values()), companionConnected: healthy })
     } catch {
-      set({ companionConnected: false })
+      // If everything fails, still try to show local recipes
+      const localRecipes = await localStorage.getRecipes().catch(() => [] as Recipe[])
+      set({ recipes: localRecipes, companionConnected: false })
     }
+  },
+
+  saveRecipeLocally: async (recipe: Recipe) => {
+    await localStorage.saveRecipe(recipe)
+    // Refresh the recipe list
+    await get().fetchRecipes()
   },
 
   startRun: async (recipeId, slotValues) => {
