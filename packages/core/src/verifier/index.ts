@@ -1,2 +1,5 @@
 export type { VerifyResult, VerifyContext } from './types.js'
 export { verify } from './verifier.js'
+export { sanitizeRecipe } from './sanitize-recipe.js'
+export type { SanitizeResult } from './sanitize-recipe.js'
+export { computeIntegrity, verifyIntegrity } from './integrity.js'
