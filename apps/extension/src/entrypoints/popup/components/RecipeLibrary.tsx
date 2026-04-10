@@ -4,7 +4,7 @@ import { useQuokkaStore } from '../../../store'
 import * as api from '../../../lib/api'
 import { downloadRecipe, downloadAllRecipes } from '../../../lib/export-recipe'
 import { parseRecipeFile, type ImportPreview } from '../../../lib/import-recipe'
-import { copyRecipeJson } from '../../../lib/share-link'
+import { copyRecipeJson, copyShareUrl } from '../../../lib/share-link'
 import ImportPreviewDialog from './ImportPreviewDialog'
 import TimelineEditor from './TimelineEditor'
 import { incrementStat } from '../../../lib/stats'
@@ -19,6 +19,7 @@ export default function RecipeLibrary() {
   const [importing, setImporting] = useState(false)
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [linkCopiedId, setLinkCopiedId] = useState<string | null>(null)
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null)
   const updateRecipe = useQuokkaStore((s) => s.updateRecipe)
 
@@ -118,6 +119,21 @@ export default function RecipeLibrary() {
       await copyRecipeJson(recipe)
       setCopiedId(recipe.id)
       setTimeout(() => setCopiedId(null), 2000)
+    } catch {
+      // Clipboard API may not be available
+    }
+  }
+
+  const handleShareLink = async (recipe: typeof recipes[0]) => {
+    try {
+      const wasUrl = await copyShareUrl(recipe)
+      setLinkCopiedId(recipe.id)
+      setTimeout(() => setLinkCopiedId(null), 2000)
+      if (!wasUrl) {
+        // Recipe too large for URL, fell back to JSON copy
+        setCopiedId(recipe.id)
+        setTimeout(() => setCopiedId(null), 2000)
+      }
     } catch {
       // Clipboard API may not be available
     }
@@ -261,6 +277,13 @@ export default function RecipeLibrary() {
                 title="Edit recipe steps"
               >
                 Edit
+              </button>
+              <button
+                onClick={() => handleShareLink(recipe)}
+                className="px-2 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded hover:bg-indigo-100 transition-colors"
+                title="Copy shareable link to clipboard"
+              >
+                {linkCopiedId === recipe.id ? 'Link copied!' : 'Share link'}
               </button>
               <button
                 onClick={() => handleShare(recipe)}

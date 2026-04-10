@@ -128,6 +128,9 @@ export const RecipeSchema = z.object({
     pack: z.string().optional(),
     isDemo: z.boolean().optional(),
     suggestedFor: z.string().optional(),
+    author: AuthorSchema.optional(),
+    runCount: z.number().optional(),
+    description: z.string().optional(),
   }),
 })
 

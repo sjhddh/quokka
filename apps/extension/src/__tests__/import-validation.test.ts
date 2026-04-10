@@ -167,4 +167,59 @@ describe('parseRecipeFile', () => {
       }
     })
   })
+
+  describe('paste import (same parseRecipeFile, simulating pasted text)', () => {
+    it('parses pasted raw recipe JSON', () => {
+      const pasted = JSON.stringify(VALID_RECIPE)
+      const result = parseRecipeFile(pasted)
+      const preview = Array.isArray(result) ? result[0] : result
+      expect(preview.name).toBe('Test Recipe')
+      expect(preview.stepCount).toBe(1)
+    })
+
+    it('parses pasted QuokkaExport wrapper', () => {
+      const pasted = JSON.stringify(VALID_EXPORT)
+      const result = parseRecipeFile(pasted)
+      const preview = Array.isArray(result) ? result[0] : result
+      expect(preview.name).toBe('Test Recipe')
+    })
+
+    it('auto-detects QuokkaExport vs raw recipe', () => {
+      // Raw recipe
+      const rawResult = parseRecipeFile(JSON.stringify(VALID_RECIPE))
+      const rawPreview = Array.isArray(rawResult) ? rawResult[0] : rawResult
+      expect(rawPreview.recipe.id).toBe('test-recipe-1')
+
+      // Wrapped export
+      const wrapResult = parseRecipeFile(JSON.stringify(VALID_EXPORT))
+      const wrapPreview = Array.isArray(wrapResult) ? wrapResult[0] : wrapResult
+      expect(wrapPreview.recipe.id).toBe('test-recipe-1')
+    })
+
+    it('rejects invalid pasted JSON with clear message', () => {
+      expect(() => parseRecipeFile('{invalid json}')).toThrow(ImportValidationError)
+      expect(() => parseRecipeFile('{invalid json}')).toThrow("doesn't look like a valid recipe")
+    })
+
+    it('rejects non-recipe pasted JSON', () => {
+      expect(() => parseRecipeFile('{"foo": "bar"}')).toThrow(ImportValidationError)
+    })
+
+    it('handles pasted recipe with enriched meta fields', () => {
+      const enriched = {
+        ...VALID_RECIPE,
+        meta: {
+          ...VALID_RECIPE.meta,
+          author: { name: 'Alice', url: 'https://alice.dev' },
+          runCount: 42,
+          description: 'An enriched recipe',
+        },
+      }
+      const result = parseRecipeFile(JSON.stringify(enriched))
+      const preview = Array.isArray(result) ? result[0] : result
+      expect(preview.recipe.meta.author).toEqual({ name: 'Alice', url: 'https://alice.dev' })
+      expect(preview.recipe.meta.runCount).toBe(42)
+      expect(preview.recipe.meta.description).toBe('An enriched recipe')
+    })
+  })
 })

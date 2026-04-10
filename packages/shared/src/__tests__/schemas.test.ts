@@ -81,6 +81,70 @@ describe('RecipeSchema', () => {
       expect(result.data.version).toBe('0.1.0')
     }
   })
+
+  it('should accept meta.author with name and url', () => {
+    const recipe = {
+      ...validRecipe,
+      meta: {
+        ...validRecipe.meta,
+        author: { name: 'Alice', url: 'https://alice.dev' },
+      },
+    }
+    const result = RecipeSchema.safeParse(recipe)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.meta.author).toEqual({ name: 'Alice', url: 'https://alice.dev' })
+    }
+  })
+
+  it('should accept meta.author with name only', () => {
+    const recipe = {
+      ...validRecipe,
+      meta: {
+        ...validRecipe.meta,
+        author: { name: 'Bob' },
+      },
+    }
+    const result = RecipeSchema.safeParse(recipe)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.meta.author).toEqual({ name: 'Bob' })
+    }
+  })
+
+  it('should accept meta.runCount', () => {
+    const recipe = {
+      ...validRecipe,
+      meta: { ...validRecipe.meta, runCount: 5 },
+    }
+    const result = RecipeSchema.safeParse(recipe)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.meta.runCount).toBe(5)
+    }
+  })
+
+  it('should accept meta.description', () => {
+    const recipe = {
+      ...validRecipe,
+      meta: { ...validRecipe.meta, description: 'A detailed description of this recipe' },
+    }
+    const result = RecipeSchema.safeParse(recipe)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.meta.description).toBe('A detailed description of this recipe')
+    }
+  })
+
+  it('should treat new meta fields as optional', () => {
+    const result = RecipeSchema.safeParse(validRecipe)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.meta.author).toBeUndefined()
+      expect(result.data.meta.runCount).toBeUndefined()
+      expect(result.data.meta.description).toBeUndefined()
+    }
+  })
 })
 
 describe('RunSchema', () => {
