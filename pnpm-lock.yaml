@@ -23,24 +23,15 @@ importers:
       '@fastify/cors':
         specifier: ^11.0.1
         version: 11.2.0
-      '@quokka/compiler':
+      '@quokka/core':
         specifier: workspace:*
-        version: link:../../packages/compiler
-      '@quokka/headless':
-        specifier: workspace:*
-        version: link:../../packages/headless
-      '@quokka/model-router':
-        specifier: workspace:*
-        version: link:../../packages/model-router
+        version: link:../../packages/core
       '@quokka/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@quokka/storage':
         specifier: workspace:*
         version: link:../../packages/storage
-      '@quokka/verifier':
-        specifier: workspace:*
-        version: link:../../packages/verifier
       fastify:
         specifier: ^5.2.1
         version: 5.8.4
@@ -95,26 +86,23 @@ importers:
         specifier: ^0.20.7
         version: 0.20.20(@types/node@22.19.17)(jiti@1.21.7)(rollup@4.60.1)(tsx@4.21.0)
 
-  packages/compiler:
+  packages/core:
     dependencies:
       '@quokka/shared':
         specifier: workspace:*
         version: link:../shared
+      eventemitter3:
+        specifier: ^5.0.1
+        version: 5.0.4
       nanoid:
         specifier: ^5.0.9
         version: 5.1.7
-
-  packages/headless:
-    dependencies:
-      '@quokka/runtime':
-        specifier: workspace:*
-        version: link:../runtime
-      '@quokka/shared':
-        specifier: workspace:*
-        version: link:../shared
       playwright:
         specifier: ^1.52.0
         version: 1.59.1
+      zod:
+        specifier: ^3.24.2
+        version: 3.25.76
     devDependencies:
       typescript:
         specifier: ^5.7.0
@@ -123,47 +111,11 @@ importers:
         specifier: ^3.1.0
         version: 3.2.4(@types/node@22.19.17)(jiti@2.6.1)(tsx@4.21.0)
 
-  packages/model-router:
-    dependencies:
-      '@quokka/shared':
-        specifier: workspace:*
-        version: link:../shared
-      zod:
-        specifier: ^3.24.2
-        version: 3.25.76
-
-  packages/recipe-dsl:
-    dependencies:
-      '@quokka/shared':
-        specifier: workspace:*
-        version: link:../shared
-      nanoid:
-        specifier: ^5.0.9
-        version: 5.1.7
-
-  packages/runtime:
-    dependencies:
-      '@quokka/shared':
-        specifier: workspace:*
-        version: link:../shared
-      '@quokka/verifier':
-        specifier: workspace:*
-        version: link:../verifier
-      eventemitter3:
-        specifier: ^5.0.1
-        version: 5.0.4
-
   packages/shared:
     dependencies:
       zod:
         specifier: ^3.24.2
         version: 3.25.76
-
-  packages/starter-packs:
-    dependencies:
-      '@quokka/shared':
-        specifier: workspace:*
-        version: link:../shared
 
   packages/storage:
     dependencies:
@@ -183,12 +135,6 @@ importers:
       drizzle-kit:
         specifier: ^0.31.10
         version: 0.31.10
-
-  packages/verifier:
-    dependencies:
-      '@quokka/shared':
-        specifier: workspace:*
-        version: link:../shared
 
 packages:
 

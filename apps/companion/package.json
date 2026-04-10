@@ -13,10 +13,7 @@
     "@fastify/cors": "^11.0.1",
     "@quokka/shared": "workspace:*",
     "@quokka/storage": "workspace:*",
-    "@quokka/compiler": "workspace:*",
-    "@quokka/verifier": "workspace:*",
-    "@quokka/headless": "workspace:*",
-    "@quokka/model-router": "workspace:*",
+    "@quokka/core": "workspace:*",
     "nanoid": "^5.0.9"
   },
   "devDependencies": {

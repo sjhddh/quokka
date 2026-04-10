@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify'
-import { ModelRouter } from '@quokka/model-router'
+import { ModelRouter } from '@quokka/core'
 
 interface ProviderBody {
   id: string

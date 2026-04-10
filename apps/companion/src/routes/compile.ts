@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify'
-import { compileTrace } from '@quokka/compiler'
-import type { WatchTrace } from '@quokka/compiler'
+import { compileTrace } from '@quokka/core'
+import type { WatchTrace } from '@quokka/core'
 
 export const compilePlugin: FastifyPluginAsync = async (app) => {
   app.post<{ Body: { trace: WatchTrace; name?: string } }>(

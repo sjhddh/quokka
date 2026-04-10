@@ -1,7 +1,7 @@
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import { createDb, RecipeRepo, RunRepo, EventRepo, ProviderRepo } from '@quokka/storage'
-import { ModelRouter } from '@quokka/model-router'
+import { ModelRouter } from '@quokka/core'
 import { loadConfig } from './config.js'
 import { recipesPlugin } from './routes/recipes.js'
 import { runsPlugin } from './routes/runs.js'

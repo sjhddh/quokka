@@ -37,7 +37,7 @@ export const runsPlugin: FastifyPluginAsync = async (app) => {
       app.ctx.runRepo.updateStatus(created.id, 'running')
 
       // Execute in background — don't await
-      import('@quokka/headless').then(({ runHeadless }) => {
+      import('@quokka/core').then(({ runHeadless }) => {
         runHeadless(recipe, slotValues ?? {}, {
           onEvent: (event) => {
             // Persist event and broadcast via SSE
