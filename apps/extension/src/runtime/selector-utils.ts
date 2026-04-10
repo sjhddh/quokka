@@ -1,5 +1,5 @@
 import type { Locator } from '@quokka/shared'
-import { buildSelectorChain } from '@quokka/core'
+import { buildSelectorChain } from '@quokka/core/runtime'
 
 /**
  * Resolve a Locator to a CSS selector string.

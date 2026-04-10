@@ -2,7 +2,7 @@ import type { Locator } from '@quokka/shared'
 
 /** Escape an ID for use in a CSS selector. Uses CSS.escape when available, else simple fallback. */
 function escapeCssId(id: string): string {
-  if (typeof CSS !== 'undefined' && CSS.escape) return escapeCssId(id)
+  if (typeof CSS !== 'undefined' && CSS.escape) return CSS.escape(id)
   return id.replace(/([^\w-])/g, '\\$1')
 }
 
@@ -85,7 +85,7 @@ export function buildNthChildPath(element: Element): string {
     }
 
     // Compute nth-child index (1-based, among all siblings)
-    const parent = current.parentElement
+    const parent: Element | null = current.parentElement
     if (parent) {
       const children = Array.from(parent.children)
       const index = children.indexOf(current) + 1

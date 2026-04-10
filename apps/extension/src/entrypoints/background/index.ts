@@ -10,8 +10,8 @@ import { dispatchReplay, type ReplayCallbacks } from '../../runtime/step-dispatc
 import type { StepResult } from '../../runtime/content-executor'
 import * as api from '../../lib/api'
 import * as localStorage from '../../lib/local-storage'
-import { compileTrace as compileTraceLocal } from '@quokka/core'
-import type { WatchTrace } from '@quokka/core'
+import { compileTrace as compileTraceLocal } from '@quokka/core/compiler'
+import type { WatchTrace } from '@quokka/core/compiler'
 
 const CHECKPOINT_NOTIFICATION_PREFIX = 'quokka-checkpoint-'
 
