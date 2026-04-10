@@ -272,11 +272,15 @@ export const useQuokkaStore = create<QuokkaStore>((set, get) => ({
         throw new Error('LLM returned invalid recipe JSON')
       }
 
+      const now = new Date().toISOString()
       const recipe: Recipe = {
         id: (parsed.id as string) ?? crypto.randomUUID(),
         name: (parsed.name as string) ?? 'Generated Recipe',
         description: (parsed.description as string) ?? '',
-        version: (parsed.version as number) ?? 1,
+        version: (parsed.version as string) ?? '0.1.0',
+        schemaVersion: 1 as const,
+        createdAt: now,
+        updatedAt: now,
         hosts: (parsed.hosts as string[]) ?? [],
         slots: (parsed.slots as Recipe['slots']) ?? [],
         guards: (parsed.guards as Recipe['guards']) ?? [],

@@ -5,7 +5,7 @@ import WatchMe from './components/WatchMe'
 import RecipeLibrary from './components/RecipeLibrary'
 import DoMode from './components/DoMode'
 import CheckpointDialog from './components/CheckpointDialog'
-import ProviderSettings from './components/ProviderSettings'
+import LLMSettings from './components/LLMSettings'
 
 const TABS = ['Quick Run', 'Watch Me', 'Recipes', 'Do'] as const
 type Tab = (typeof TABS)[number]
@@ -32,7 +32,7 @@ export default function App() {
   return (
     <div className="w-[380px] min-h-[480px] bg-gray-50 flex flex-col relative">
       <CheckpointDialog />
-      {showSettings && <ProviderSettings onClose={() => setShowSettings(false)} />}
+      {showSettings && <LLMSettings onClose={() => setShowSettings(false)} />}
 
       {/* Header */}
       <header className="bg-indigo-600 text-white px-4 py-3 flex items-center justify-between">
