@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { resolveSelector, findElement, waitForElement, interpolate } from '../runtime/selector-utils'
+import { resolveSelector, findElement, waitForElement, interpolate, tryFallbackChain } from '../runtime/selector-utils'
 
 describe('resolveSelector', () => {
   it('returns css selector when present', () => {
@@ -111,6 +111,94 @@ describe('waitForElement', () => {
     await expect(
       waitForElement({ css: '#never' }, 200, 50)
     ).rejects.toThrow('Timed out')
+  })
+})
+
+describe('tryFallbackChain', () => {
+  beforeEach(() => {
+    document.body.innerHTML = ''
+  })
+
+  it('finds element via fallbackSelectors when primary css fails', () => {
+    document.body.innerHTML = '<button aria-label="Submit">Go</button>'
+    const el = tryFallbackChain({
+      css: '#nonexistent',
+      fallbackSelectors: ['[aria-label="Submit"]'],
+    })
+    expect(el).not.toBeNull()
+    expect(el?.getAttribute('aria-label')).toBe('Submit')
+  })
+
+  it('returns null when no selectors match', () => {
+    document.body.innerHTML = '<div>nothing</div>'
+    const el = tryFallbackChain({
+      css: '#nope',
+      fallbackSelectors: ['.also-nope'],
+    })
+    expect(el).toBeNull()
+  })
+
+  it('skips XPath selectors gracefully', () => {
+    document.body.innerHTML = '<span>text</span>'
+    const el = tryFallbackChain({
+      fallbackSelectors: ['//*[contains(text(),"text")]', 'span'],
+    })
+    // XPath is skipped, but 'span' should match
+    expect(el).not.toBeNull()
+    expect(el?.tagName).toBe('SPAN')
+  })
+
+  it('skips :has-text pseudo selectors gracefully', () => {
+    document.body.innerHTML = '<button>Click</button>'
+    const el = tryFallbackChain({
+      text: 'Click',
+      fallbackSelectors: ['button'],
+    })
+    expect(el).not.toBeNull()
+  })
+
+  it('returns first matching selector in chain order', () => {
+    document.body.innerHTML = '<button class="btn" data-testid="go">Go</button>'
+    const el = tryFallbackChain({
+      testId: 'go',
+      fallbackSelectors: ['.btn'],
+    })
+    // testId comes before fallbackSelectors in chain
+    expect(el).not.toBeNull()
+    expect(el?.getAttribute('data-testid')).toBe('go')
+  })
+
+  it('handles invalid CSS selectors without throwing', () => {
+    document.body.innerHTML = '<div>safe</div>'
+    const el = tryFallbackChain({
+      fallbackSelectors: ['[invalid===', 'div'],
+    })
+    expect(el).not.toBeNull()
+  })
+})
+
+describe('findElement with fallback chain', () => {
+  beforeEach(() => {
+    document.body.innerHTML = ''
+  })
+
+  it('uses fallbackSelectors when primary selector fails', () => {
+    document.body.innerHTML = '<button aria-label="Save">Save</button>'
+    const el = findElement({
+      css: '#missing-btn',
+      fallbackSelectors: ['[aria-label="Save"]'],
+    })
+    expect(el).not.toBeNull()
+    expect(el?.getAttribute('aria-label')).toBe('Save')
+  })
+
+  it('prefers primary selector over fallback chain', () => {
+    document.body.innerHTML = '<button id="primary" aria-label="Alt">Go</button>'
+    const el = findElement({
+      css: '#primary',
+      fallbackSelectors: ['[aria-label="Alt"]'],
+    })
+    expect(el?.id).toBe('primary')
   })
 })
 

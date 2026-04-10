@@ -1,4 +1,5 @@
 import type { Locator } from '@quokka/shared'
+import { buildSelectorChain } from '@quokka/core'
 
 /**
  * Resolve a Locator to a CSS selector string.
@@ -13,9 +14,33 @@ export function resolveSelector(locator: Locator): string {
 }
 
 /**
- * Find an element using a Locator with fallback strategies.
+ * Try every selector in the fallback chain until one matches.
+ * Returns the first matching element, or null.
+ */
+export function tryFallbackChain(locator: Locator): HTMLElement | null {
+  const chain = buildSelectorChain(locator)
+
+  for (const selector of chain) {
+    // Skip XPath and pseudo-selectors that querySelector can't handle
+    if (selector.startsWith('/') || selector.includes(':has-text(')) {
+      continue
+    }
+    try {
+      const el = document.querySelector<HTMLElement>(selector)
+      if (el) return el
+    } catch {
+      // Invalid selector — skip
+    }
+  }
+
+  return null
+}
+
+/**
+ * Find an element using a Locator with full fallback chain.
  * 1. CSS selector (css, testId, ariaLabel)
- * 2. Text content match
+ * 2. Full fallback chain from buildSelectorChain
+ * 3. Text content match
  */
 export function findElement(locator: Locator): HTMLElement | null {
   // Try CSS-based selector first
@@ -24,6 +49,10 @@ export function findElement(locator: Locator): HTMLElement | null {
     const el = document.querySelector<HTMLElement>(cssSelector)
     if (el) return el
   }
+
+  // Try the full fallback chain (includes fallbackSelectors from recording)
+  const fallbackEl = tryFallbackChain(locator)
+  if (fallbackEl) return fallbackEl
 
   // Fallback: text content match
   if (locator.text) {

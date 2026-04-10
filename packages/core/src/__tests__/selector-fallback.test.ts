@@ -57,4 +57,25 @@ describe('buildSelectorChain', () => {
     const chain = buildSelectorChain({})
     expect(chain).toEqual([])
   })
+
+  it('follows correct priority order: css > testId > ariaLabel > text', () => {
+    const chain = buildSelectorChain({
+      css: '.btn',
+      testId: 'submit',
+      ariaLabel: 'Submit',
+      text: 'Go',
+    })
+    expect(chain[0]).toBe('.btn')
+    expect(chain[1]).toBe('[data-testid="submit"]')
+    expect(chain[2]).toBe('[aria-label="Submit"]')
+    expect(chain[3]).toBe(':has-text("Go")')
+  })
+
+  it('includes nth-child path from fallbackSelectors', () => {
+    const chain = buildSelectorChain({
+      css: '.btn',
+      fallbackSelectors: ['#form > div:nth-child(2) > button:nth-child(1)'],
+    })
+    expect(chain).toContain('#form > div:nth-child(2) > button:nth-child(1)')
+  })
 })

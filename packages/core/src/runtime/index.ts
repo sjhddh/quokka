@@ -7,7 +7,12 @@ export { RecipeRunner } from './runner.js'
 export type { PauseContext } from './runner.js'
 export { checkGuards } from './guard-checker.js'
 export type { GuardCheckResult } from './guard-checker.js'
-export { buildSelectorChain } from './selector-fallback.js'
+export {
+  buildSelectorChain,
+  buildNthChildPath,
+  buildCombinedSelector,
+  buildParentChildSelector,
+} from './selector-fallback.js'
 export {
   tryWithFallbacks,
   retryWithBackoff,
