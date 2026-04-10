@@ -15,6 +15,7 @@ export const RUN_EVENT_TYPES = {
   GUARD_FAILED: 'guard_failed',
   RUN_COMPLETED: 'run_completed',
   RUN_FAILED: 'run_failed',
+  CONDITION_EVALUATED: 'condition_evaluated',
 } as const satisfies Record<string, RunEventType>
 
 /** Typed event map: maps each event type to its corresponding RunEvent */
@@ -32,6 +33,7 @@ export interface RunEventMap {
   guard_failed: RunEvent
   run_completed: RunEvent
   run_failed: RunEvent
+  condition_evaluated: RunEvent
 }
 
 /** Type-safe event handler */
