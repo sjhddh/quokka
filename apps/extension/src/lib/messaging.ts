@@ -33,6 +33,9 @@ export enum MessageType {
   STEP_PAUSE_RESPONSE = 'STEP_PAUSE_RESPONSE',
   SHOW_FAILURE_OVERLAY = 'SHOW_FAILURE_OVERLAY',
   HIDE_FAILURE_OVERLAY = 'HIDE_FAILURE_OVERLAY',
+
+  // URL import messages
+  IMPORT_FROM_URL = 'IMPORT_FROM_URL',
 }
 
 export interface Message {
@@ -101,6 +104,10 @@ export interface ShowFailureOverlayPayload {
   selector: string
   stepIndex: number
   error: string
+}
+
+export interface ImportFromUrlPayload {
+  url: string
 }
 
 export function sendToBackground<T = unknown>(message: Message): Promise<T> {

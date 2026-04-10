@@ -6,6 +6,6 @@ export default defineConfig({
   manifest: {
     name: 'Quokka',
     description: 'Watch once. Run forever. Browser-native task automation.',
-    permissions: ['activeTab', 'scripting', 'storage', 'notifications'],
+    permissions: ['activeTab', 'scripting', 'storage', 'notifications', 'webNavigation'],
   },
 })

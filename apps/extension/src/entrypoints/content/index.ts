@@ -1,6 +1,7 @@
 import { ContentBridge } from './bridge'
 import { WatchRecorder } from './recorder'
 import { FailureOverlay } from './failure-overlay'
+import { LinkDetector } from './link-detector'
 import { MessageType, type BridgeCallPayload, type ExecuteStepPayload, type ShowFailureOverlayPayload, type StepPauseResponsePayload } from '../../lib/messaging'
 import { executeStepCommand } from '../../runtime/content-executor'
 
@@ -10,6 +11,10 @@ export default defineContentScript({
     const bridge = new ContentBridge()
     const recorder = new WatchRecorder()
     const failureOverlay = new FailureOverlay()
+    const linkDetector = new LinkDetector()
+
+    // Start scanning for .quokka.json links on the page
+    linkDetector.start()
 
     // Broadcast recording events to the pill via custom DOM events
     function notifyPill(detail: Record<string, unknown>) {

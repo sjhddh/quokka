@@ -1,5 +1,6 @@
 import type { Recipe } from '@quokka/shared'
 import { wrapRecipe } from './export-recipe.js'
+import { encodeRecipeToUrl } from './url-import.js'
 
 /**
  * Copy recipe JSON to clipboard as raw JSON text.
@@ -31,4 +32,31 @@ export async function copyRecipeAsBase64(recipe: Recipe): Promise<void> {
   const json = JSON.stringify(wrapped)
   const base64 = btoa(unescape(encodeURIComponent(json)))
   await navigator.clipboard.writeText(base64)
+}
+
+/**
+ * Generate a shareable URL for a recipe.
+ *
+ * For small recipes (<2KB encoded), encodes as base64 in a URL fragment.
+ * For large recipes, falls back to copying the full JSON (caller should
+ * handle the null return by offering a copy-paste flow instead).
+ */
+export function generateShareUrl(recipe: Recipe): string | null {
+  return encodeRecipeToUrl(recipe)
+}
+
+/**
+ * Copy a shareable URL for a recipe to clipboard.
+ * Returns true if a URL was generated, false if the recipe is too large
+ * (falls back to copying JSON).
+ */
+export async function copyShareUrl(recipe: Recipe): Promise<boolean> {
+  const url = generateShareUrl(recipe)
+  if (url) {
+    await navigator.clipboard.writeText(url)
+    return true
+  }
+  // Fall back to JSON copy for large recipes
+  await copyRecipeJson(recipe)
+  return false
 }
