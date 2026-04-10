@@ -2,7 +2,7 @@ import { ContentBridge } from './bridge'
 import { WatchRecorder } from './recorder'
 import { FailureOverlay } from './failure-overlay'
 import { LinkDetector } from './link-detector'
-import { MessageType, type BridgeCallPayload, type ExecuteStepPayload, type ShowFailureOverlayPayload, type StepPauseResponsePayload } from '../../lib/messaging'
+import { MessageType, type BridgeCallPayload, type ExecuteStepPayload, type ShowFailureOverlayPayload, type StepPauseResponsePayload, type CheckSelectorPayload, type CheckSelectorResult } from '../../lib/messaging'
 import { executeStepCommand } from '../../runtime/content-executor'
 
 export default defineContentScript({
@@ -107,6 +107,48 @@ export default defineContentScript({
         case MessageType.HIDE_FAILURE_OVERLAY: {
           failureOverlay.hide()
           sendResponse({ ok: true })
+          return false
+        }
+
+        case MessageType.CHECK_SELECTOR: {
+          const { selector, fallbacks } = payload as CheckSelectorPayload
+          const result: CheckSelectorResult = { found: false, count: 0 }
+
+          // Try primary selector
+          try {
+            const matches = document.querySelectorAll(selector)
+            if (matches.length > 0) {
+              result.found = true
+              result.count = matches.length
+              result.matchedVia = selector
+              sendResponse(result)
+              return false
+            }
+          } catch {
+            // Invalid selector — continue to fallbacks
+          }
+
+          // Try fallback selectors
+          if (fallbacks) {
+            for (const fb of fallbacks) {
+              // Skip XPath and pseudo-selectors that querySelector can't handle
+              if (fb.startsWith('/') || fb.includes(':has-text(')) continue
+              try {
+                const matches = document.querySelectorAll(fb)
+                if (matches.length > 0) {
+                  result.found = true
+                  result.count = matches.length
+                  result.matchedVia = fb
+                  sendResponse(result)
+                  return false
+                }
+              } catch {
+                // Invalid selector — skip
+              }
+            }
+          }
+
+          sendResponse(result)
           return false
         }
       }

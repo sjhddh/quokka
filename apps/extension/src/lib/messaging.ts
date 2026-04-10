@@ -36,6 +36,10 @@ export enum MessageType {
 
   // URL import messages
   IMPORT_FROM_URL = 'IMPORT_FROM_URL',
+
+  // Health check messages
+  CHECK_SELECTOR = 'CHECK_SELECTOR',
+  HEALTH_CHECK = 'HEALTH_CHECK',
 }
 
 export interface Message {
@@ -108,6 +112,17 @@ export interface ShowFailureOverlayPayload {
 
 export interface ImportFromUrlPayload {
   url: string
+}
+
+export interface CheckSelectorPayload {
+  selector: string
+  fallbacks?: string[]
+}
+
+export interface CheckSelectorResult {
+  found: boolean
+  count: number
+  matchedVia?: string
 }
 
 export function sendToBackground<T = unknown>(message: Message): Promise<T> {
