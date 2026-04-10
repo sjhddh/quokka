@@ -49,24 +49,35 @@ export class WatchRecorder {
   private clickHandler: ((e: MouseEvent) => void) | null = null
   private inputHandler: ((e: Event) => void) | null = null
   private navHandler: ((e: BeforeUnloadEvent) => void) | null = null
+  private onStep: ((entry: TraceEntry) => void) | null = null
 
-  start(): void {
+  getEntryCount(): number {
+    return this.entries.length
+  }
+
+  start(onStep?: (entry: TraceEntry) => void): void {
     this.entries = []
     this.startUrl = window.location.href
+    this.onStep = onStep ?? null
 
     this.clickHandler = (e: MouseEvent) => {
       const target = e.target as Element
       if (!target) return
-      this.entries.push({
+      // Ignore clicks inside the quokka-pill element
+      if (target.closest?.('quokka-pill')) return
+      const entry: TraceEntry = {
         type: 'click',
         selector: buildSelector(target),
         timestamp: Date.now(),
-      })
+      }
+      this.entries.push(entry)
+      this.onStep?.(entry)
     }
 
     this.inputHandler = (e: Event) => {
       const target = e.target as HTMLInputElement
       if (!target) return
+      if ((target as Element).closest?.('quokka-pill')) return
       // Debounce: update last entry if same selector
       const selector = buildSelector(target)
       const last = this.entries[this.entries.length - 1]
@@ -74,21 +85,25 @@ export class WatchRecorder {
         last.value = target.value
         last.timestamp = Date.now()
       } else {
-        this.entries.push({
+        const entry: TraceEntry = {
           type: 'type',
           selector,
           value: target.value,
           timestamp: Date.now(),
-        })
+        }
+        this.entries.push(entry)
+        this.onStep?.(entry)
       }
     }
 
     this.navHandler = () => {
-      this.entries.push({
+      const entry: TraceEntry = {
         type: 'navigate',
         url: window.location.href,
         timestamp: Date.now(),
-      })
+      }
+      this.entries.push(entry)
+      this.onStep?.(entry)
     }
 
     document.addEventListener('click', this.clickHandler, true)

@@ -1,12 +1,21 @@
 import { ContentBridge } from './bridge'
 import { WatchRecorder } from './recorder'
-import { MessageType, type BridgeCallPayload } from '../../lib/messaging'
+import { FailureOverlay } from './failure-overlay'
+import { MessageType, type BridgeCallPayload, type ExecuteStepPayload, type ShowFailureOverlayPayload, type StepPauseResponsePayload } from '../../lib/messaging'
+import { executeStepCommand } from '../../runtime/content-executor'
 
 export default defineContentScript({
   matches: ['<all_urls>'],
   main() {
     const bridge = new ContentBridge()
     const recorder = new WatchRecorder()
+
+    // Broadcast recording events to the pill via custom DOM events
+    function notifyPill(detail: Record<string, unknown>) {
+      window.dispatchEvent(
+        new CustomEvent('quokka-pill-event', { detail })
+      )
+    }
 
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       const { type, payload } = message
@@ -35,14 +44,42 @@ export default defineContentScript({
         }
 
         case MessageType.START_WATCH: {
-          recorder.start()
+          recorder.start((entry) => {
+            // Notify pill of each recorded step
+            notifyPill({
+              type: 'recording-step',
+              entry,
+              stepCount: recorder.getEntryCount(),
+            })
+          })
+          notifyPill({ type: 'recording-started' })
           sendResponse({ ok: true })
           return false
         }
 
         case MessageType.STOP_WATCH: {
           const trace = recorder.stop()
+          notifyPill({ type: 'recording-stopped', stepCount: trace.entries.length })
           sendResponse(trace)
+          return false
+        }
+
+        case MessageType.EXECUTE_STEP: {
+          const cmd = payload as ExecuteStepPayload
+          executeStepCommand(cmd)
+            .then((result) => sendResponse(result))
+            .catch((err) => sendResponse({ ok: false, error: String(err) }))
+          return true // async response
+        }
+
+        case MessageType.RUN_PROGRESS: {
+          notifyPill({
+            type: 'run-progress',
+            currentStep: (payload as Record<string, unknown>).currentStep,
+            totalSteps: (payload as Record<string, unknown>).totalSteps,
+            status: (payload as Record<string, unknown>).status,
+          })
+          sendResponse({ ok: true })
           return false
         }
       }

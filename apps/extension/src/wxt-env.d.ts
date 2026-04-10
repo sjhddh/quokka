@@ -9,3 +9,9 @@ declare function defineContentScript(options: {
   runAt?: 'document_start' | 'document_end' | 'document_idle'
   main: () => void
 }): void
+
+// CSS inline imports (Vite/WXT)
+declare module '*.css?inline' {
+  const css: string
+  export default css
+}
