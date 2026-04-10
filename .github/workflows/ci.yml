@@ -7,24 +7,52 @@ on:
     branches: [main]
 
 jobs:
-  build-and-test:
+  lint-and-typecheck:
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        node-version: [20]
-
     steps:
       - uses: actions/checkout@v4
 
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm lint
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests
+        run: pnpm test
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
           cache: 'pnpm'
 
       - name: Install dependencies
@@ -33,9 +61,77 @@ jobs:
       - name: Build all packages
         run: pnpm build
 
-      - name: Run tests
-        run: pnpm test
+      - name: Verify extension build output
+        run: test -d apps/extension/.output
 
-      - name: Type check
-        run: pnpm -r --filter '!@quokka/extension' exec tsc --noEmit
-        continue-on-error: true
+      - name: Check bundle size
+        run: |
+          SIZE_KB=$(du -sk apps/extension/.output/ | cut -f1)
+          echo "Extension bundle size: ${SIZE_KB}KB"
+          if [ "$SIZE_KB" -gt 1024 ]; then
+            echo "::error::Bundle size ${SIZE_KB}KB exceeds 1MB limit"
+            exit 1
+          fi
+
+      - name: Upload extension artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: quokka-extension
+          path: apps/extension/.output/
+
+  validate-recipes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared package
+        run: pnpm --filter @quokka/shared build
+
+      - name: Validate .quokka.json files
+        run: |
+          node --input-type=module -e "
+          import { QuokkaExportSchema } from '@quokka/shared';
+          import { readFileSync, readdirSync } from 'fs';
+          import { join } from 'path';
+
+          function findRecipes(dir) {
+            const files = [];
+            for (const entry of readdirSync(dir, { withFileTypes: true })) {
+              const full = join(dir, entry.name);
+              if (entry.isDirectory()) files.push(...findRecipes(full));
+              else if (entry.name.endsWith('.quokka.json')) files.push(full);
+            }
+            return files;
+          }
+
+          const recipes = findRecipes('community-recipes');
+          if (recipes.length === 0) {
+            console.log('No .quokka.json files found');
+            process.exit(0);
+          }
+
+          let failed = false;
+          for (const file of recipes) {
+            const data = JSON.parse(readFileSync(file, 'utf-8'));
+            const result = QuokkaExportSchema.safeParse(data);
+            if (result.success) {
+              console.log('OK:', file);
+            } else {
+              console.error('FAIL:', file);
+              console.error(result.error.format());
+              failed = true;
+            }
+          }
+          if (failed) process.exit(1);
+          console.log('All', recipes.length, 'recipes valid');
+          "
