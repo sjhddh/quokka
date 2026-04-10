@@ -110,3 +110,162 @@ export function sendToBackground<T = unknown>(message: Message): Promise<T> {
 export function sendToContent<T = unknown>(tabId: number, message: Message): Promise<T> {
   return chrome.tabs.sendMessage(tabId, message)
 }
+
+/**
+ * Convert technical error strings to plain English for non-technical users.
+ */
+export function humanizeError(
+  error: string,
+  context?: { stepType?: string; selector?: string },
+): string {
+  if (!error) return 'Something unexpected happened'
+
+  // Selector / element not found
+  if (/selector.*not\s*found|element.*not\s*found|SelectorNotFoundError|no\s*element|cannot\s*find/i.test(error)) {
+    const label = friendlySelector(context?.selector)
+    if (label) {
+      return `Couldn't find the ${label} — the page may have changed`
+    }
+    return "Couldn't find the element on the page — the page may have changed"
+  }
+
+  // Timeout
+  if (/timeout|timed?\s*out/i.test(error)) {
+    if (context?.stepType === 'navigate' || /navigat/i.test(error)) {
+      return 'This page took too long to load'
+    }
+    if (context?.stepType === 'wait') {
+      return 'Waited too long for the page to be ready'
+    }
+    return 'This step took too long to complete'
+  }
+
+  // Navigation errors
+  if (/net::ERR_|network|fetch.*fail|connection/i.test(error)) {
+    return "Couldn't reach the website — check your internet connection"
+  }
+
+  // Permission / access errors
+  if (/forbidden|403|401|unauthorized|access\s*denied/i.test(error)) {
+    return "The website didn't allow access — you may need to log in first"
+  }
+
+  // Generic fallback
+  return 'Something unexpected happened'
+}
+
+/**
+ * Extract a human-readable label from a CSS selector.
+ */
+function friendlySelector(selector?: string): string {
+  if (!selector) return ''
+
+  // aria-label
+  const ariaMatch = selector.match(/\[aria-label="([^"]+)"\]/)
+  if (ariaMatch) return ariaMatch[1]
+
+  // data-testid
+  const testIdMatch = selector.match(/\[data-testid="([^"]+)"\]/)
+  if (testIdMatch) return testIdMatch[1].replace(/[-_]/g, ' ')
+
+  // ID selector like #login-btn
+  const idMatch = selector.match(/^#([\w-]+)$/)
+  if (idMatch) return idMatch[1].replace(/[-_]/g, ' ')
+
+  // text-based selectors or simple tag names
+  const textMatch = selector.match(/button|input|link|a\b|select|textarea/i)
+  if (textMatch) return textMatch[0].toLowerCase()
+
+  return ''
+}
+
+export interface HumanizeStepInput {
+  type: string
+  description?: string
+  target?: { css?: string; text?: string; ariaLabel?: string; testId?: string }
+  value?: string
+  url?: string
+  as?: string
+  timeout?: number
+}
+
+/**
+ * Generate a human-readable description of a step for toast messages.
+ * Uses subject-verb-object format: "Clicked the Sign In button"
+ */
+export function humanizeStep(step: HumanizeStepInput, _index?: number): string {
+  // If the step has an explicit description, prefer it
+  if (step.description) return step.description
+
+  const label = stepTargetLabel(step)
+
+  switch (step.type) {
+    case 'click':
+      return label ? `Clicked the ${label}` : 'Clicked an element'
+    case 'type': {
+      const val = step.value ?? ''
+      const preview = val.length > 30 ? val.slice(0, 27) + '...' : val
+      return label
+        ? `Typed "${preview}" into ${label}`
+        : `Typed "${preview}"`
+    }
+    case 'navigate': {
+      const url = step.url ?? ''
+      try {
+        const hostname = new URL(url).hostname
+        return `Navigated to ${hostname}`
+      } catch {
+        return `Navigated to ${url.slice(0, 40)}${url.length > 40 ? '...' : ''}`
+      }
+    }
+    case 'wait':
+      return label
+        ? `Waiting for ${label} to appear...`
+        : 'Waiting for the page to load...'
+    case 'extract':
+      return label
+        ? `Extracted data from ${label}`
+        : 'Extracted data from the page'
+    case 'scroll':
+      return label
+        ? `Scrolled to ${label}`
+        : 'Scrolled the page'
+    case 'select':
+      return label
+        ? `Selected "${step.value ?? ''}" in ${label}`
+        : `Selected "${step.value ?? ''}"`
+    case 'hover':
+      return label
+        ? `Hovered over ${label}`
+        : 'Hovered over an element'
+    case 'checkpoint':
+      return 'Paused for your confirmation'
+    default:
+      return `Performed action: ${step.type}`
+  }
+}
+
+/**
+ * Get a friendly label for a step's target element.
+ */
+function stepTargetLabel(step: HumanizeStepInput): string {
+  const t = step.target
+  if (!t) return ''
+
+  if (t.ariaLabel) return `"${t.ariaLabel}"`
+  if (t.text) return `"${t.text}"`
+  if (t.testId) return t.testId.replace(/[-_]/g, ' ')
+
+  if (t.css) {
+    // Try to extract something readable from CSS
+    const ariaMatch = t.css.match(/\[aria-label="([^"]+)"\]/)
+    if (ariaMatch) return `"${ariaMatch[1]}"`
+    const idMatch = t.css.match(/^#([\w-]+)$/)
+    if (idMatch) return idMatch[1].replace(/[-_]/g, ' ')
+    // Tag-based selectors
+    const tagMatch = t.css.match(/^(button|input|select|textarea|a)\b/i)
+    if (tagMatch) return `the ${tagMatch[1].toLowerCase()}`
+  }
+
+  return ''
+}

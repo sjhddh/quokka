@@ -1,28 +1,18 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { MessageType, sendToBackground } from '../../lib/messaging'
+import { MessageType, sendToBackground, humanizeStep } from '../../lib/messaging'
 import PillSidebar from './PillSidebar'
 import StepToast, { useToasts } from './StepToast'
 
-type PillState = 'idle' | 'recording' | 'running' | 'error'
+type PillState = 'idle' | 'onboarding' | 'recording' | 'running' | 'error'
 
 function describeEntry(entry: { type: string; selector?: string; value?: string; url?: string }): string {
-  switch (entry.type) {
-    case 'click': {
-      // Try to extract readable label from selector
-      const sel = entry.selector ?? ''
-      const idMatch = sel.match(/^#(.+)/)
-      if (idMatch) return `Clicked '#${idMatch[1]}'`
-      const testIdMatch = sel.match(/\[data-testid="([^"]+)"\]/)
-      if (testIdMatch) return `Clicked '${testIdMatch[1]}'`
-      return `Clicked element`
-    }
-    case 'type':
-      return `Typed "${(entry.value ?? '').slice(0, 20)}${(entry.value?.length ?? 0) > 20 ? '...' : ''}"`
-    case 'navigate':
-      return `Navigated`
-    default:
-      return `Action: ${entry.type}`
-  }
+  // Convert to HumanizeStepInput shape and delegate to humanizeStep
+  return humanizeStep({
+    type: entry.type,
+    target: entry.selector ? { css: entry.selector } : undefined,
+    value: entry.value,
+    url: entry.url,
+  })
 }
 
 export default function FloatingPill() {
@@ -38,8 +28,17 @@ export default function FloatingPill() {
   const dragOffset = useRef({ x: 0, y: 0 })
   const [position, setPosition] = useState({ bottom: 24, right: 24 })
 
-  // Fetch initial state from background
+  // Check onboarding flag & fetch initial state from background
   useEffect(() => {
+    chrome.storage.local.get('hasSeenOnboarding', (result) => {
+      if (!result.hasSeenOnboarding) {
+        setState('onboarding')
+        // Position center-right for onboarding visibility
+        const centerBottom = Math.round(window.innerHeight / 2 - 28)
+        setPosition({ bottom: centerBottom, right: 24 })
+      }
+    })
+
     sendToBackground<{ ok: boolean; isRecording: boolean; stepCount: number }>({
       type: MessageType.GET_STATE,
     })
@@ -141,10 +140,21 @@ export default function FloatingPill() {
     }
   }, [])
 
+  const dismissOnboarding = useCallback(() => {
+    chrome.storage.local.set({ hasSeenOnboarding: true })
+    setState('idle')
+    setPosition({ bottom: 24, right: 24 })
+  }, [])
+
   const handleClick = useCallback(() => {
     if (dragging.current) return
+    if (state === 'onboarding') {
+      dismissOnboarding()
+      setSidebarOpen(true)
+      return
+    }
     setSidebarOpen((prev) => !prev)
-  }, [])
+  }, [state, dismissOnboarding])
 
   const handleToggleRecording = useCallback(async () => {
     try {
