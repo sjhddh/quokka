@@ -1,10 +1,12 @@
 import { useRef, useState } from 'react'
+import type { Recipe } from '@quokka/shared'
 import { useQuokkaStore } from '../../../store'
 import * as api from '../../../lib/api'
 import { downloadRecipe, downloadAllRecipes } from '../../../lib/export-recipe'
 import { parseRecipeFile, type ImportPreview } from '../../../lib/import-recipe'
 import { copyRecipeJson } from '../../../lib/share-link'
 import ImportPreviewDialog from './ImportPreviewDialog'
+import TimelineEditor from './TimelineEditor'
 
 export default function RecipeLibrary() {
   const recipes = useQuokkaStore((s) => s.recipes)
@@ -15,6 +17,8 @@ export default function RecipeLibrary() {
   const [importPreviews, setImportPreviews] = useState<ImportPreview[] | null>(null)
   const [importing, setImporting] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null)
+  const updateRecipe = useQuokkaStore((s) => s.updateRecipe)
 
   const handleExport = async (id: string) => {
     try {
@@ -104,6 +108,17 @@ export default function RecipeLibrary() {
 
   return (
     <div className="space-y-2">
+      {editingRecipe && (
+        <TimelineEditor
+          recipe={editingRecipe}
+          onSave={async (updated) => {
+            await updateRecipe(updated)
+            setEditingRecipe(null)
+          }}
+          onClose={() => setEditingRecipe(null)}
+        />
+      )}
+
       {importPreviews && (
         <ImportPreviewDialog
           previews={importPreviews}
@@ -168,6 +183,13 @@ export default function RecipeLibrary() {
               </div>
             </div>
             <div className="flex gap-1.5 shrink-0">
+              <button
+                onClick={() => setEditingRecipe(recipe)}
+                className="px-2 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded hover:bg-indigo-100 transition-colors"
+                title="Edit recipe steps"
+              >
+                Edit
+              </button>
               <button
                 onClick={() => handleShare(recipe)}
                 className="px-2 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded hover:bg-gray-100 transition-colors"

@@ -36,6 +36,7 @@ export interface QuokkaStore {
   approveCheckpoint: () => void
   rejectCheckpoint: () => void
   generateRecipe: (prompt: string, providerId?: string) => Promise<void>
+  updateRecipe: (recipe: Recipe) => Promise<void>
   clearGeneratedRecipe: () => void
   fetchProviders: () => Promise<void>
   saveProvider: (config: ProviderConfig) => Promise<void>
@@ -238,35 +239,102 @@ export const useQuokkaStore = create<QuokkaStore>((set, get) => ({
   generateRecipe: async (prompt, providerId) => {
     set({ generatingRecipe: true, generateError: null, generatedRecipe: null })
     try {
-      const recipe = await api.generateRecipe(prompt, providerId)
+      const { companionConnected } = get()
+
+      // Try companion first if connected
+      if (companionConnected) {
+        try {
+          const recipe = await api.generateRecipe(prompt, providerId)
+          set({ generatedRecipe: recipe, generatingRecipe: false })
+          return
+        } catch {
+          // Fall through to local LLM
+        }
+      }
+
+      // Use local LLM provider
+      const provider = providerId
+        ? get().providers.find((p) => p.id === providerId)
+        : await llmStorage.getActiveProvider()
+
+      if (!provider) {
+        throw new Error('No LLM provider configured. Add one in Settings.')
+      }
+
+      const content = await generateWithProvider(provider, prompt)
+
+      // Parse the LLM response as a recipe
+      let parsed: Record<string, unknown>
+      try {
+        const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/) ?? [null, content]
+        parsed = JSON.parse(jsonMatch[1]!.trim())
+      } catch {
+        throw new Error('LLM returned invalid recipe JSON')
+      }
+
+      const recipe: Recipe = {
+        id: (parsed.id as string) ?? crypto.randomUUID(),
+        name: (parsed.name as string) ?? 'Generated Recipe',
+        description: (parsed.description as string) ?? '',
+        version: (parsed.version as number) ?? 1,
+        hosts: (parsed.hosts as string[]) ?? [],
+        slots: (parsed.slots as Recipe['slots']) ?? [],
+        guards: (parsed.guards as Recipe['guards']) ?? [],
+        steps: (parsed.steps as Recipe['steps']) ?? [],
+        meta: parsed.meta as Recipe['meta'],
+      }
+
       set({ generatedRecipe: recipe, generatingRecipe: false })
     } catch (err) {
+      const message =
+        err && typeof err === 'object' && 'message' in err
+          ? (err as { message: string }).message
+          : 'Generation failed'
       set({
         generatingRecipe: false,
-        generateError: err instanceof Error ? err.message : 'Generation failed',
+        generateError: message,
       })
     }
+  },
+
+  updateRecipe: async (recipe: Recipe) => {
+    await localStorage.saveRecipe(recipe)
+    if (get().companionConnected) {
+      await api.updateRecipe(recipe.id, recipe).catch(() => {})
+    }
+    await get().fetchRecipes()
   },
 
   clearGeneratedRecipe: () => set({ generatedRecipe: null, generateError: null }),
 
   fetchProviders: async () => {
     try {
-      const providers = await api.getProviders()
-      set({ providers })
+      const [localProviders, activeProvider] = await Promise.all([
+        llmStorage.getProviders(),
+        llmStorage.getActiveProvider(),
+      ])
+      set({
+        providers: localProviders,
+        activeProviderId: activeProvider?.id ?? null,
+      })
     } catch {
       // silently fail
     }
   },
 
   saveProvider: async (config) => {
-    await api.createProvider(config)
+    await llmStorage.saveProvider(config)
     await get().fetchProviders()
   },
 
   removeProvider: async (id) => {
-    await api.deleteProvider(id)
+    await llmStorage.deleteProvider(id)
     await get().fetchProviders()
+  },
+
+  setActiveProvider: async (id) => {
+    await llmStorage.setActiveProvider(id)
+    set({ activeProviderId: id })
   },
 }))
 
