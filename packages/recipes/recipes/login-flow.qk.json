@@ -1,0 +1,71 @@
+{
+  "version": "2.0",
+  "id": "a1b2c3d4-1001-4000-8000-000000000001",
+  "name": "Generic Login Flow",
+  "description": "Log into a web application using email and password credentials, then verify the dashboard loads successfully.",
+  "intent": "Log into the application and reach the authenticated dashboard",
+  "steps": [
+    {
+      "type": "action",
+      "id": "login-01",
+      "intent": "Navigate to the login page",
+      "context_hint": "Look for a login or sign-in link, or go directly to /login",
+      "likelyNavigates": true
+    },
+    {
+      "type": "page_boundary",
+      "id": "login-02",
+      "expectedUrl": "*/login*",
+      "waitCondition": "domContentLoaded"
+    },
+    {
+      "type": "action",
+      "id": "login-03",
+      "intent": "Enter the email address into the email field",
+      "context_hint": "The email input field, often labeled 'Email' or 'Username'",
+      "value": "{{email}}",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "login-04",
+      "intent": "Enter the password into the password field",
+      "context_hint": "The password input field",
+      "value": "{{password}}",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "login-05",
+      "intent": "Click the sign-in button to submit credentials",
+      "context_hint": "A button labeled 'Sign In', 'Log In', or 'Submit'",
+      "verification": "Page should begin navigating to the dashboard",
+      "likelyNavigates": true
+    },
+    {
+      "type": "page_boundary",
+      "id": "login-06",
+      "expectedUrl": "*/dashboard*",
+      "waitCondition": "networkIdle"
+    },
+    {
+      "type": "action",
+      "id": "login-07",
+      "intent": "Verify the dashboard has loaded successfully",
+      "context_hint": "Look for a welcome message, user avatar, or dashboard heading",
+      "verification": "Dashboard content is visible and user is authenticated",
+      "likelyNavigates": false
+    }
+  ],
+  "variables": {
+    "email": "user@example.com",
+    "password": "your-password-here"
+  },
+  "hosts": ["app.example.com"],
+  "meta": {
+    "createdFrom": "code",
+    "tags": ["auth", "login", "seed"]
+  },
+  "createdAt": "2026-04-11T00:00:00.000Z",
+  "updatedAt": "2026-04-11T00:00:00.000Z"
+}

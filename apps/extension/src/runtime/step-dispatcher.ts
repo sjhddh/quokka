@@ -1,5 +1,6 @@
 import type { Recipe, Step, Run, RunEvent, Condition } from '@quokka/shared'
 import type { StepCommand, StepResult } from './content-executor'
+import { saveCheckpoint, clearCheckpoint, type ExecutionCheckpoint } from './checkpoint'
 
 function makeId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
@@ -19,38 +20,70 @@ export interface ReplayCallbacks {
 /**
  * Dispatch a recipe for replay using the in-extension runtime.
  * Iterates through steps, sends each to the content script, and reports events.
+ *
+ * Pass `resumeFrom` to resume execution from a saved checkpoint after a SW restart.
  */
 export async function dispatchReplay(
   recipe: Recipe,
   slotValues: Record<string, string>,
   tabId: number,
   callbacks: ReplayCallbacks,
+  resumeFrom?: ExecutionCheckpoint,
 ): Promise<Run> {
   const run: Run = {
-    id: makeId('run'),
+    id: resumeFrom?.runId ?? makeId('run'),
     recipeId: recipe.id,
     status: 'running',
     slotValues,
-    currentStepIndex: 0,
-    startedAt: new Date().toISOString(),
+    currentStepIndex: resumeFrom?.currentStepIndex ?? 0,
+    startedAt: resumeFrom?.startedAt ?? new Date().toISOString(),
   }
 
-  emitEvent(callbacks, 'run_started', run)
+  // Save an initial checkpoint before the first step (or mark resuming)
+  await saveCheckpoint({
+    runId: run.id,
+    recipeId: recipe.id,
+    recipeName: recipe.name,
+    recipeVersion: recipe.version ?? '1.0',
+    slotValues,
+    tabId,
+    currentStepIndex: run.currentStepIndex,
+    totalSteps: recipe.steps.length,
+    status: 'running',
+    startedAt: run.startedAt!,
+    lastStepAt: new Date().toISOString(),
+    events: resumeFrom?.events ?? [],
+  })
+
+  if (!resumeFrom) {
+    emitEvent(callbacks, 'run_started', run)
+  }
 
   try {
-    const result = await executeSteps(recipe.steps, slotValues, tabId, callbacks, run)
+    const startIndex = resumeFrom?.currentStepIndex ?? 0
+    const result = await executeSteps(
+      recipe.steps,
+      slotValues,
+      tabId,
+      callbacks,
+      run,
+      recipe,
+      startIndex,
+    )
     if (result === 'failed') {
-      // run.status already set by executeSteps
+      await clearCheckpoint()
       return run
     }
 
     run.status = 'completed'
     run.finishedAt = new Date().toISOString()
+    await clearCheckpoint()
     emitEvent(callbacks, 'run_completed', run)
   } catch (err) {
     run.status = 'failed'
     run.error = err instanceof Error ? err.message : String(err)
     run.finishedAt = new Date().toISOString()
+    await clearCheckpoint()
     emitEvent(callbacks, 'run_failed', run)
   }
 
@@ -58,8 +91,42 @@ export async function dispatchReplay(
 }
 
 /**
+ * Resume a replay from a saved checkpoint. Verifies the tab is still alive
+ * and the recipe still exists before re-entering executeSteps.
+ */
+export async function resumeReplay(
+  checkpoint: ExecutionCheckpoint,
+  recipe: Recipe,
+  callbacks: ReplayCallbacks,
+): Promise<Run> {
+  // Verify the target tab is still alive
+  try {
+    await chrome.tabs.get(checkpoint.tabId)
+  } catch {
+    // Tab was closed while SW was sleeping — can't resume
+    await clearCheckpoint()
+    const run: Run = {
+      id: checkpoint.runId,
+      recipeId: checkpoint.recipeId,
+      status: 'failed',
+      slotValues: checkpoint.slotValues,
+      currentStepIndex: checkpoint.currentStepIndex,
+      startedAt: checkpoint.startedAt,
+      finishedAt: new Date().toISOString(),
+      error: 'Tab was closed while the extension was inactive',
+    }
+    return run
+  }
+
+  return dispatchReplay(recipe, checkpoint.slotValues, checkpoint.tabId, callbacks, checkpoint)
+}
+
+/**
  * Execute a list of steps. Returns 'ok' if all steps succeed, 'failed' if any fails.
  * Supports recursive execution for conditional branches.
+ *
+ * `startIndex` allows resuming from a checkpoint; only used at the top-level call.
+ * `recipe` is passed through solely so we can checkpoint `totalSteps`.
  */
 async function executeSteps(
   steps: Step[],
@@ -67,8 +134,10 @@ async function executeSteps(
   tabId: number,
   callbacks: ReplayCallbacks,
   run: Run,
+  recipe?: Recipe,
+  startIndex = 0,
 ): Promise<'ok' | 'failed'> {
-  for (let i = 0; i < steps.length; i++) {
+  for (let i = startIndex; i < steps.length; i++) {
     run.currentStepIndex = i
     const step = steps[i]
 
@@ -112,6 +181,24 @@ async function executeSteps(
 
     if (result.ok) {
       emitEvent(callbacks, 'step_succeeded', run, i, result.data ? { data: result.data } : undefined)
+
+      // Checkpoint after each successful step so we can resume if SW is killed
+      if (recipe) {
+        await saveCheckpoint({
+          runId: run.id,
+          recipeId: run.recipeId,
+          recipeName: recipe.name,
+          recipeVersion: recipe.version ?? '1.0',
+          slotValues,
+          tabId,
+          currentStepIndex: i + 1,
+          totalSteps: recipe.steps.length,
+          status: 'running',
+          startedAt: run.startedAt!,
+          lastStepAt: new Date().toISOString(),
+          events: [],
+        })
+      }
 
       // After navigate, wait for the page to settle
       if (step.type === 'navigate') {

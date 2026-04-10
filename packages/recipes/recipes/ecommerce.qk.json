@@ -1,0 +1,96 @@
+{
+  "version": "2.0",
+  "id": "a1b2c3d4-1001-4000-8000-000000000006",
+  "name": "E-Commerce Add to Cart",
+  "description": "Search for a product, select it from results, add it to cart, and verify the cart is updated.",
+  "intent": "Find a product and add it to the shopping cart",
+  "steps": [
+    {
+      "type": "action",
+      "id": "shop-01",
+      "intent": "Navigate to the online store or marketplace",
+      "likelyNavigates": true
+    },
+    {
+      "type": "page_boundary",
+      "id": "shop-02",
+      "waitCondition": "networkIdle"
+    },
+    {
+      "type": "action",
+      "id": "shop-03",
+      "intent": "Type the product name into the search bar",
+      "context_hint": "The product search input, often at the top of the page",
+      "value": "{{product_name}}",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "shop-04",
+      "intent": "Submit the product search",
+      "context_hint": "Press Enter or click the search button",
+      "likelyNavigates": true
+    },
+    {
+      "type": "page_boundary",
+      "id": "shop-05",
+      "expectedUrl": "*search*",
+      "waitCondition": "networkIdle"
+    },
+    {
+      "type": "action",
+      "id": "shop-06",
+      "intent": "Verify product search results are shown",
+      "verification": "At least one product result is displayed",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "shop-07",
+      "intent": "Click the first matching product to view its details",
+      "context_hint": "The first product card or listing in the search results",
+      "likelyNavigates": true
+    },
+    {
+      "type": "page_boundary",
+      "id": "shop-08",
+      "expectedUrl": "*/product*",
+      "waitCondition": "domContentLoaded"
+    },
+    {
+      "type": "action",
+      "id": "shop-09",
+      "intent": "Select the desired quantity if applicable",
+      "context_hint": "A quantity selector or input, default to 1",
+      "value": "{{quantity}}",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "shop-10",
+      "intent": "Click the Add to Cart button",
+      "context_hint": "A prominent button labeled 'Add to Cart', 'Add to Bag', or 'Buy'",
+      "verification": "Cart icon updates or a confirmation toast/modal appears",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "shop-11",
+      "intent": "Verify the cart has been updated with the product",
+      "context_hint": "Check the cart icon badge count or open the mini-cart",
+      "verification": "Cart count increased or product appears in cart preview",
+      "likelyNavigates": false
+    }
+  ],
+  "variables": {
+    "product_name": "wireless noise-canceling headphones",
+    "quantity": "1"
+  },
+  "hosts": ["shop.example.com"],
+  "meta": {
+    "createdFrom": "code",
+    "tags": ["ecommerce", "cart", "shopping", "seed"]
+  },
+  "createdAt": "2026-04-11T00:00:00.000Z",
+  "updatedAt": "2026-04-11T00:00:00.000Z"
+}

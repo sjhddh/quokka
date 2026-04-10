@@ -1,4 +1,6 @@
 import { captureFallbacks } from './fallback-capture'
+import { sendToBackground, MessageType, type ActionCapturedPayload } from '../../lib/messaging'
+import { redactInputValue } from '@quokka/core'
 
 export interface TraceEntry {
   type: 'click' | 'type' | 'navigate'
@@ -72,14 +74,31 @@ export class WatchRecorder {
       if (!target) return
       // Ignore clicks inside the quokka-pill element
       if (target.closest?.('quokka-pill')) return
+      const selector = buildSelector(target)
       const entry: TraceEntry = {
         type: 'click',
-        selector: buildSelector(target),
+        selector,
         fallbackSelectors: captureFallbacks(target),
         timestamp: Date.now(),
       }
       this.entries.push(entry)
       this.onStep?.(entry)
+
+      // Send action to background for intent extraction (v2 flow)
+      const capture: ActionCapturedPayload = {
+        type: 'click',
+        element: {
+          tag: target.tagName.toLowerCase(),
+          text: (target.textContent ?? '').trim().slice(0, 100) || undefined,
+          ariaLabel: target.getAttribute('aria-label') ?? undefined,
+          role: target.getAttribute('role') ?? undefined,
+          selector,
+        },
+        pageUrl: window.location.href,
+        pageTitle: document.title,
+        timestamp: entry.timestamp,
+      }
+      sendToBackground({ type: MessageType.ACTION_CAPTURED, payload: capture }).catch(() => {})
     }
 
     this.inputHandler = (e: Event) => {
@@ -89,7 +108,8 @@ export class WatchRecorder {
       // Debounce: update last entry if same selector
       const selector = buildSelector(target)
       const last = this.entries[this.entries.length - 1]
-      if (last && last.type === 'type' && last.selector === selector) {
+      const isNewEntry = !(last && last.type === 'type' && last.selector === selector)
+      if (!isNewEntry) {
         last.value = target.value
         last.timestamp = Date.now()
       } else {
@@ -103,16 +123,48 @@ export class WatchRecorder {
         this.entries.push(entry)
         this.onStep?.(entry)
       }
+
+      // Send action to background for intent extraction (v2 flow)
+      // Redact sensitive values before sending to background
+      const { value: safeValue } = redactInputValue(target)
+      const capture: ActionCapturedPayload = {
+        type: 'type',
+        element: {
+          tag: target.tagName.toLowerCase(),
+          ariaLabel: target.getAttribute('aria-label') ?? undefined,
+          role: target.getAttribute('role') ?? undefined,
+          placeholder: target.placeholder || undefined,
+          name: target.name || undefined,
+          type: target.type || undefined,
+          selector,
+        },
+        value: safeValue,
+        pageUrl: window.location.href,
+        pageTitle: document.title,
+        timestamp: Date.now(),
+      }
+      sendToBackground({ type: MessageType.ACTION_CAPTURED, payload: capture }).catch(() => {})
     }
 
     this.navHandler = () => {
+      const now = Date.now()
       const entry: TraceEntry = {
         type: 'navigate',
         url: window.location.href,
-        timestamp: Date.now(),
+        timestamp: now,
       }
       this.entries.push(entry)
       this.onStep?.(entry)
+
+      // Send action to background for intent extraction (v2 flow)
+      const capture: ActionCapturedPayload = {
+        type: 'navigate',
+        url: window.location.href,
+        pageUrl: window.location.href,
+        pageTitle: document.title,
+        timestamp: now,
+      }
+      sendToBackground({ type: MessageType.ACTION_CAPTURED, payload: capture }).catch(() => {})
     }
 
     document.addEventListener('click', this.clickHandler, true)

@@ -1,0 +1,35 @@
+{
+  "name": "@quokka/langchain",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "LangChain.js adapter for Quokka browser automation",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@quokka/core": "workspace:*",
+    "@quokka/shared": "workspace:*",
+    "@quokka/runner-playwright": "workspace:*",
+    "zod": "^3.24.2"
+  },
+  "peerDependencies": {
+    "langchain": ">=0.3.0",
+    "@langchain/core": ">=0.3.0"
+  },
+  "devDependencies": {
+    "@langchain/core": "^0.3.0",
+    "langchain": "^0.3.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.1.0"
+  }
+}

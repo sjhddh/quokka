@@ -2,8 +2,9 @@ import { ContentBridge } from './bridge'
 import { WatchRecorder } from './recorder'
 import { FailureOverlay } from './failure-overlay'
 import { LinkDetector } from './link-detector'
-import { MessageType, type BridgeCallPayload, type ExecuteStepPayload, type ShowFailureOverlayPayload, type StepPauseResponsePayload, type CheckSelectorPayload, type CheckSelectorResult } from '../../lib/messaging'
+import { MessageType, type BridgeCallPayload, type ExecuteStepPayload, type ShowFailureOverlayPayload, type StepPauseResponsePayload, type CheckSelectorPayload, type CheckSelectorResult, type PageSnapshotResultPayload } from '../../lib/messaging'
 import { executeStepCommand } from '../../runtime/content-executor'
+import { capturePageSnapshot } from '@quokka/core'
 
 export default defineContentScript({
   matches: ['<all_urls>'],
@@ -149,6 +150,17 @@ export default defineContentScript({
           }
 
           sendResponse(result)
+          return false
+        }
+
+        case MessageType.CAPTURE_PAGE_SNAPSHOT: {
+          try {
+            const snapshot = capturePageSnapshot(document)
+            const response: PageSnapshotResultPayload = { snapshot }
+            sendResponse(response)
+          } catch (err) {
+            sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) })
+          }
           return false
         }
       }

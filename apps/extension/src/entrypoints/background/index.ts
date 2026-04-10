@@ -6,8 +6,9 @@ import {
   type CheckpointPendingPayload,
   type CheckpointResponsePayload,
   type ImportFromUrlPayload,
+  type ActionCapturedPayload,
 } from '../../lib/messaging'
-import { dispatchReplay, type ReplayCallbacks } from '../../runtime/step-dispatcher'
+import { dispatchReplay, resumeReplay, type ReplayCallbacks } from '../../runtime/step-dispatcher'
 import type { StepResult } from '../../runtime/content-executor'
 import { checkAuthContext } from '../../runtime/auth-detector'
 import * as api from '../../lib/api'
@@ -23,6 +24,10 @@ import {
   getSchedule,
   logScheduleRun,
 } from '../../lib/scheduler'
+import { getActiveProvider } from '../../lib/llm-storage'
+import { IntentRecordingSession } from '../../lib/intent-recording'
+import { hasIncompleteRun, loadCheckpoint, clearCheckpoint } from '../../runtime/checkpoint'
+import { startKeepalive, stopKeepalive, registerKeepaliveListener } from '../../runtime/keepalive'
 
 const CHECKPOINT_NOTIFICATION_PREFIX = 'quokka-checkpoint-'
 
@@ -35,6 +40,9 @@ const recordingState = {
   stepCount: 0,
   tabId: null as number | null,
 }
+
+// v2 intent extraction session — null when no provider is configured or not recording
+let intentSession: IntentRecordingSession | null = null
 
 async function handleToggleRecording(): Promise<{
   ok: boolean
@@ -49,6 +57,18 @@ async function handleToggleRecording(): Promise<{
     recordingState.active = true
     recordingState.stepCount = 0
     recordingState.tabId = tab.id
+
+    // Try to initialise v2 intent session if a provider is configured
+    intentSession = null
+    try {
+      const providerConfig = await getActiveProvider()
+      if (providerConfig) {
+        intentSession = new IntentRecordingSession(providerConfig)
+      }
+    } catch {
+      // No provider — fall back to v1-only recording
+    }
+
     await chrome.tabs.sendMessage(tab.id, { type: MessageType.START_WATCH })
     return { ok: true, isRecording: true }
   } else {
@@ -66,21 +86,115 @@ async function handleToggleRecording(): Promise<{
         const recipe = compileTraceLocal(trace as WatchTrace)
         await localStorage.saveRecipe(recipe)
         await incrementStat('recipesRecorded')
+
+        // If we have intent steps, also build and broadcast a v2 recipe
+        if (intentSession && intentSession.stepCount > 0) {
+          const tabInfo = await chrome.tabs.get(targetTab)
+          const recipeV2 = intentSession.finalize(recipe.name, tabInfo.url ?? '')
+          chrome.runtime.sendMessage({
+            type: MessageType.RECORDING_COMPLETE_V2,
+            payload: { recipe: recipeV2 },
+          }).catch(() => {})
+        }
+        intentSession = null
+
         return {
           ok: true,
           isRecording: false,
           compiled: { name: recipe.name, stepCount: recipe.steps.length },
         }
       } catch {
+        intentSession = null
         return { ok: true, isRecording: false }
       }
     }
+    intentSession = null
     return { ok: true, isRecording: false }
   }
 }
 
 export default defineBackground(() => {
-  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  // Register keepalive alarm listener — must be registered synchronously at SW startup
+  registerKeepaliveListener()
+
+  // On SW startup: check if a recipe run was interrupted and attempt to resume
+  hasIncompleteRun().then(async (incomplete) => {
+    if (!incomplete) return
+
+    const checkpoint = await loadCheckpoint()
+    if (!checkpoint) return
+
+    console.log('[quokka] SW restarted with incomplete run, attempting resume:', checkpoint.runId)
+
+    // Resolve the recipe — local storage first, then companion
+    let recipe: import('@quokka/shared').Recipe | undefined
+    try {
+      recipe = await localStorage.getRecipe(checkpoint.recipeId)
+    } catch {
+      // ignore
+    }
+    if (!recipe) {
+      try {
+        recipe = await api.getRecipe(checkpoint.recipeId)
+      } catch {
+        // ignore
+      }
+    }
+
+    if (!recipe) {
+      console.warn('[quokka] Resume failed: recipe not found for', checkpoint.recipeId)
+      await clearCheckpoint()
+      return
+    }
+
+    const callbacks: ReplayCallbacks = {
+      onEvent: (event) => {
+        chrome.runtime.sendMessage({
+          type: MessageType.REPLAY_EVENT,
+          payload: { event },
+        }).catch(() => {})
+      },
+      onCheckpoint: async (message) => {
+        const runId = `cp_${Date.now()}`
+        chrome.runtime.sendMessage({
+          type: MessageType.CHECKPOINT_PENDING,
+          payload: { runId, stepIndex: 0, message } satisfies CheckpointPendingPayload,
+        }).catch(() => {})
+        chrome.notifications.create(
+          `${CHECKPOINT_NOTIFICATION_PREFIX}${runId}`,
+          {
+            type: 'basic',
+            iconUrl: chrome.runtime.getURL('icon/128.png'),
+            title: 'Quokka — Checkpoint',
+            message,
+            buttons: [{ title: 'Approve' }, { title: 'Reject' }],
+            requireInteraction: true,
+          }
+        )
+        return new Promise<boolean>((resolve) => {
+          pendingCheckpoints.set(runId, resolve)
+        })
+      },
+      executeStep: async (_tabId, cmd) => {
+        const response = await chrome.tabs.sendMessage(checkpoint.tabId, {
+          type: MessageType.EXECUTE_STEP,
+          payload: cmd as unknown as ExecuteStepPayload,
+        })
+        return response as StepResult
+      },
+    }
+
+    startKeepalive()
+    try {
+      await resumeReplay(checkpoint, recipe, callbacks)
+    } finally {
+      stopKeepalive()
+    }
+  }).catch((err) => {
+    console.error('[quokka] Resume check failed:', err)
+  })
+
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const { type, payload } = message
 
     switch (type) {
@@ -127,6 +241,31 @@ export default defineBackground(() => {
         handleToggleRecording()
           .then((result) => sendResponse(result))
           .catch((err) => sendResponse({ ok: false, error: String(err) }))
+        return true
+      }
+
+      case MessageType.ACTION_CAPTURED: {
+        // Only process if v2 intent session is active
+        if (!intentSession) {
+          sendResponse({ ok: true, v2: false })
+          return false
+        }
+        const capture = payload as ActionCapturedPayload
+        intentSession.handleAction(capture)
+          .then((step) => {
+            // Broadcast extracted intent to the pill sidebar
+            if (sender.tab?.id) {
+              chrome.tabs.sendMessage(sender.tab.id, {
+                type: MessageType.INTENT_EXTRACTED,
+                payload: { step },
+              }).catch(() => {})
+            }
+            sendResponse({ ok: true, v2: true })
+          })
+          .catch(() => {
+            // Intent extraction failed — v1 recording still intact
+            sendResponse({ ok: true, v2: false })
+          })
         return true
       }
 
@@ -391,7 +530,13 @@ async function handleLocalReplay(
   }
 
   await incrementStat('recipesReplayed')
-  const run = await dispatchReplay(recipe, slotValues, tabId, callbacks)
+  startKeepalive()
+  let run: import('@quokka/shared').Run
+  try {
+    run = await dispatchReplay(recipe, slotValues, tabId, callbacks)
+  } finally {
+    stopKeepalive()
+  }
 
   if (run.status === 'completed') {
     await incrementStat('replaySuccessCount')

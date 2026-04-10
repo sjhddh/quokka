@@ -1,0 +1,79 @@
+{
+  "version": "2.0",
+  "id": "a1b2c3d4-1001-4000-8000-000000000003",
+  "name": "Data Export with Date Range",
+  "description": "Navigate to a data or reports section, configure a date range filter, and trigger an export/download.",
+  "intent": "Export data for a specific date range from the reports section",
+  "steps": [
+    {
+      "type": "action",
+      "id": "export-01",
+      "intent": "Navigate to the data or reports section",
+      "context_hint": "Look for a navigation link labeled 'Reports', 'Data', 'Analytics', or 'Export'",
+      "likelyNavigates": true
+    },
+    {
+      "type": "page_boundary",
+      "id": "export-02",
+      "expectedUrl": "*/reports*",
+      "waitCondition": "networkIdle"
+    },
+    {
+      "type": "action",
+      "id": "export-03",
+      "intent": "Open the date range picker or filter",
+      "context_hint": "A date picker, calendar icon, or filter labeled 'Date Range'",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "export-04",
+      "intent": "Set the start date for the export range",
+      "value": "{{start_date}}",
+      "context_hint": "The 'From' or 'Start Date' input in the date picker",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "export-05",
+      "intent": "Set the end date for the export range",
+      "value": "{{end_date}}",
+      "context_hint": "The 'To' or 'End Date' input in the date picker",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "export-06",
+      "intent": "Confirm the date range selection",
+      "context_hint": "An 'Apply' or 'OK' button within the date picker",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "export-07",
+      "intent": "Click the export or download button",
+      "context_hint": "A button labeled 'Export', 'Download', 'Export CSV', or 'Download Report'",
+      "verification": "Download starts or a confirmation dialog appears",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "export-08",
+      "intent": "Confirm the export format if a dialog appears",
+      "context_hint": "If a format selection dialog appears, choose CSV or the default format",
+      "verification": "File download has been initiated",
+      "likelyNavigates": false
+    }
+  ],
+  "variables": {
+    "start_date": "2026-01-01",
+    "end_date": "2026-03-31"
+  },
+  "hosts": ["analytics.example.com"],
+  "meta": {
+    "createdFrom": "code",
+    "tags": ["export", "data", "reports", "seed"]
+  },
+  "createdAt": "2026-04-11T00:00:00.000Z",
+  "updatedAt": "2026-04-11T00:00:00.000Z"
+}

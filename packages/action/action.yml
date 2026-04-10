@@ -1,0 +1,31 @@
+name: 'Quokka Browser Automation'
+description: 'Run Quokka intent-based browser automation recipes in CI'
+inputs:
+  recipe:
+    description: 'Path to recipe file or glob pattern'
+    required: true
+  provider:
+    description: 'LLM provider (openai, anthropic, google, flock, ollama)'
+    default: 'openai'
+  api-key:
+    description: 'API key for the LLM provider (use secrets)'
+    required: true
+  headless:
+    description: 'Run browser in headless mode'
+    default: 'true'
+  timeout:
+    description: 'Per-step timeout in ms'
+    default: '30000'
+  screenshot-on-failure:
+    description: 'Capture screenshot on step failure'
+    default: 'true'
+outputs:
+  status:
+    description: 'Overall run status (completed/failed)'
+  steps-executed:
+    description: 'Number of steps executed'
+  duration:
+    description: 'Total duration in ms'
+runs:
+  using: 'node20'
+  main: 'dist/index.js'

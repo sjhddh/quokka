@@ -1,0 +1,72 @@
+{
+  "version": "2.0",
+  "id": "a1b2c3d4-1001-4000-8000-000000000004",
+  "name": "Search and Select Result",
+  "description": "Search for a term on a website, verify results appear, and click the first result.",
+  "intent": "Search for a term and open the first matching result",
+  "steps": [
+    {
+      "type": "action",
+      "id": "search-01",
+      "intent": "Locate and click the search input or search icon",
+      "context_hint": "A search bar, magnifying glass icon, or input with placeholder 'Search...'",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "search-02",
+      "intent": "Type the search term into the search field",
+      "value": "{{search_term}}",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "search-03",
+      "intent": "Submit the search query",
+      "context_hint": "Press Enter or click a search/submit button",
+      "likelyNavigates": true
+    },
+    {
+      "type": "page_boundary",
+      "id": "search-04",
+      "expectedUrl": "*search*",
+      "waitCondition": "networkIdle"
+    },
+    {
+      "type": "action",
+      "id": "search-05",
+      "intent": "Verify that search results are displayed",
+      "verification": "At least one search result is visible on the page",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "search-06",
+      "intent": "Click the first search result",
+      "context_hint": "The first link or item in the search results list",
+      "likelyNavigates": true
+    },
+    {
+      "type": "page_boundary",
+      "id": "search-07",
+      "waitCondition": "domContentLoaded"
+    },
+    {
+      "type": "action",
+      "id": "search-08",
+      "intent": "Verify the result page has loaded with relevant content",
+      "verification": "The page content is related to the search term",
+      "likelyNavigates": false
+    }
+  ],
+  "variables": {
+    "search_term": "quarterly revenue report"
+  },
+  "hosts": ["www.example.com"],
+  "meta": {
+    "createdFrom": "code",
+    "tags": ["search", "navigation", "seed"]
+  },
+  "createdAt": "2026-04-11T00:00:00.000Z",
+  "updatedAt": "2026-04-11T00:00:00.000Z"
+}

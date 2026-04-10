@@ -368,6 +368,365 @@
   background: #ef4444;
 }
 
+/* ── Recording v2 panel ───────────────────────────── */
+
+/* Watching state pill variant */
+.pill.recording-v2 {
+  background: #059669;
+}
+
+.pill.confirming {
+  background: #4f46e5;
+}
+
+/* Pulsing green dot for watching state */
+.watching-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fff;
+  animation: watchPulse 1.6s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes watchPulse {
+  0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.5); }
+  50% { opacity: 0.7; transform: scale(0.85); box-shadow: 0 0 0 4px rgba(255, 255, 255, 0); }
+}
+
+/* Shared panel shell — used by both RecordingView and ConfirmationView */
+.recording-view,
+.confirmation-view {
+  position: fixed;
+  bottom: 0;
+  right: 0;
+  width: 312px;
+  max-height: 80vh;
+  background: #fff;
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.15), 0 -4px 16px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px 0 0 0;
+  animation: slideInPanel 0.2s ease-out;
+  z-index: 2147483646;
+  overflow: hidden;
+}
+
+@keyframes slideInPanel {
+  from { transform: translateY(16px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* ── RecordingView ─────────────────────────────────── */
+
+.recording-view-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.watching-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #059669;
+  animation: watchPulse 1.6s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.recording-view-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #059669;
+  flex: 1;
+}
+
+.recording-step-count {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.recording-step-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0;
+  scroll-behavior: smooth;
+}
+
+.recording-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+/* Individual step row */
+.recording-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 14px;
+  transition: background 0.1s;
+}
+
+.recording-step:hover {
+  background: #f9fafb;
+}
+
+.recording-step-num {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  background: #e5e7eb;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+
+.recording-step-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.recording-step-intent {
+  font-size: 12px;
+  color: #1f2937;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+/* Skeleton/loading state */
+.recording-step-pending .recording-step-num {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.recording-step-skeleton {
+  display: inline-block;
+  font-size: 12px;
+  color: #9ca3af;
+  font-style: italic;
+  animation: skeletonFade 1.2s ease-in-out infinite;
+}
+
+@keyframes skeletonFade {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Inline edit input */
+.recording-step-edit {
+  width: 100%;
+  font-size: 12px;
+  color: #1f2937;
+  border: 1px solid #6366f1;
+  border-radius: 4px;
+  padding: 3px 6px;
+  outline: none;
+  background: #f0f0ff;
+  line-height: 1.4;
+}
+
+.recording-step-edit:focus {
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+/* Pencil icon button */
+.recording-step-pencil {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: #d1d5db;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.12s, background 0.12s;
+  margin-top: 2px;
+  opacity: 0;
+}
+
+.recording-step:hover .recording-step-pencil {
+  opacity: 1;
+}
+
+.recording-step-pencil:hover {
+  color: #4f46e5;
+  background: #eef2ff;
+}
+
+/* Page boundary divider */
+.page-boundary-marker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  margin: 2px 0;
+}
+
+.page-boundary-line {
+  flex: 1;
+  height: 1px;
+  background: #e5e7eb;
+}
+
+.page-boundary-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* Footer Done button */
+.recording-view-footer {
+  padding: 10px 14px;
+  border-top: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.btn-stop-recording {
+  width: 100%;
+  padding: 8px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  background: #059669;
+  color: #fff;
+  transition: background 0.15s;
+}
+
+.btn-stop-recording:hover {
+  background: #047857;
+}
+
+/* ── ConfirmationView ──────────────────────────────── */
+
+.confirmation-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.confirmation-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.confirmation-count {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.confirmation-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-bottom: 1px solid #f3f4f6;
+  flex-shrink: 0;
+}
+
+.confirmation-name-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+  flex-shrink: 0;
+}
+
+.confirmation-name-input {
+  flex: 1;
+  font-size: 12px;
+  color: #1f2937;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  padding: 4px 8px;
+  outline: none;
+  min-width: 0;
+  background: #fff;
+}
+
+.confirmation-name-input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
+.confirmation-step-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+
+.confirmation-step {
+  /* inherits .recording-step styles */
+}
+
+.confirmation-actions {
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.btn-confirm {
+  flex: 1;
+  padding: 8px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  background: #4f46e5;
+  color: #fff;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.btn-confirm:hover:not(:disabled) {
+  background: #4338ca;
+}
+
+.btn-confirm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-discard {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  background: #fff;
+  color: #6b7280;
+  transition: background 0.15s, color 0.15s;
+}
+
+.btn-discard:hover {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #fca5a5;
+}
+
 /* ── Toast ────────────────────────────────────────── */
 
 .toast-container {

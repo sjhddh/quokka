@@ -1,0 +1,21 @@
+{
+  "name": "@quokka/recipes",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./recipes/*.qk.json": "./recipes/*.qk.json"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@quokka/shared": "workspace:*"
+  }
+}

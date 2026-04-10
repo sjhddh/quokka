@@ -1,0 +1,17 @@
+name: Quokka Smoke Tests
+on: [push]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npx playwright install --with-deps chromium
+      - uses: ./packages/action
+        with:
+          recipe: '.qk/**/*.qk.json'
+          provider: openai
+          api-key: ${{ secrets.OPENAI_API_KEY }}
