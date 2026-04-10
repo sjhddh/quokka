@@ -12,6 +12,7 @@ export const RunEventTypeSchema = z.enum([
   'checkpoint_rejected',
   'guard_passed',
   'guard_failed',
+  'condition_evaluated',
   'run_completed',
   'run_failed',
 ])

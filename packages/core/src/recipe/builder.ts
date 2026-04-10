@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid'
-import type { Recipe, Step, Slot, Locator } from '@quokka/shared'
+import type { Recipe, Step, Slot, Locator, Condition } from '@quokka/shared'
 
 interface StepInput {
   target?: Locator
@@ -74,12 +74,32 @@ export class RecipeBuilder {
       case 'hover':
         this._steps.push({ type: 'hover', target: opts.target ?? {}, description: opts.description })
         break
+      case 'conditional':
+        // Use the .conditional() method for conditional steps
+        break
     }
     return this
   }
 
   checkpoint(message: string): this {
     this._steps.push({ type: 'checkpoint', message })
+    return this
+  }
+
+  conditional(
+    condition: Condition,
+    thenSteps: Step[],
+    elseSteps?: Step[],
+    description?: string,
+  ): this {
+    const step: Step = {
+      type: 'conditional' as const,
+      condition,
+      thenSteps,
+      elseSteps,
+      description,
+    }
+    this._steps.push(step)
     return this
   }
 

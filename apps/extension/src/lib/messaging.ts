@@ -40,6 +40,9 @@ export enum MessageType {
   // Health check messages
   CHECK_SELECTOR = 'CHECK_SELECTOR',
   HEALTH_CHECK = 'HEALTH_CHECK',
+
+  // Auth warning messages
+  AUTH_WARNING = 'AUTH_WARNING',
 }
 
 export interface Message {
@@ -112,6 +115,10 @@ export interface ShowFailureOverlayPayload {
 
 export interface ImportFromUrlPayload {
   url: string
+}
+
+export interface AuthWarningPayload {
+  warnings: string[]
 }
 
 export interface CheckSelectorPayload {
@@ -262,6 +269,8 @@ export function humanizeStep(step: HumanizeStepInput, _index?: number): string {
         : 'Hovered over an element'
     case 'checkpoint':
       return 'Paused for your confirmation'
+    case 'conditional':
+      return step.description ?? 'Checking a condition...'
     default:
       return `Performed action: ${step.type}`
   }

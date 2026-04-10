@@ -5,6 +5,7 @@ import {
   CheckpointSchema,
   LocatorSchema,
   StepSchema,
+  ConditionSchema,
   RecipeSchema,
   QuokkaExportSchema,
   AuthorSchema,
@@ -17,6 +18,7 @@ export type Slot = z.infer<typeof SlotSchema>
 export type Guard = z.infer<typeof GuardSchema>
 export type Checkpoint = z.infer<typeof CheckpointSchema>
 export type Locator = z.infer<typeof LocatorSchema>
+export type Condition = z.infer<typeof ConditionSchema>
 export type Step = z.infer<typeof StepSchema>
 export type Recipe = z.infer<typeof RecipeSchema>
 export type RunStatus = z.infer<typeof RunStatusSchema>

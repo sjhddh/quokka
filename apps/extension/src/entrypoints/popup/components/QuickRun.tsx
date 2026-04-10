@@ -9,6 +9,7 @@ export default function QuickRun() {
   const startLocalReplay = useQuokkaStore((s) => s.startLocalReplay)
   const useLocalRuntime = useQuokkaStore((s) => s.useLocalRuntime)
   const companionConnected = useQuokkaStore((s) => s.companionConnected)
+  const authWarnings = useQuokkaStore((s) => s.authWarnings)
 
   const [selectedId, setSelectedId] = useState('')
   const [slotValues, setSlotValues] = useState<Record<string, string>>({})
@@ -78,6 +79,15 @@ export default function QuickRun() {
       >
         {status === 'running' ? 'Running...' : 'Run'}
       </button>
+
+      {/* Auth warnings */}
+      {authWarnings.length > 0 && (
+        <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 space-y-1">
+          {authWarnings.map((w, i) => (
+            <div key={i}>&#9888; {w}</div>
+          ))}
+        </div>
+      )}
 
       {/* Status */}
       <div className="flex items-center gap-2 text-xs">

@@ -1,4 +1,4 @@
-import type { Recipe, Step, Run, RunEvent } from '@quokka/shared'
+import type { Recipe, Step, Run, RunEvent, Condition } from '@quokka/shared'
 import type { StepCommand, StepResult } from './content-executor'
 
 function makeId(prefix: string): string {
@@ -38,47 +38,10 @@ export async function dispatchReplay(
   emitEvent(callbacks, 'run_started', run)
 
   try {
-    for (let i = 0; i < recipe.steps.length; i++) {
-      run.currentStepIndex = i
-      const step = recipe.steps[i]
-
-      // Handle checkpoint steps
-      if (step.type === 'checkpoint') {
-        emitEvent(callbacks, 'checkpoint_required', run, i, { message: step.message })
-        const approved = await callbacks.onCheckpoint(step.message)
-        if (approved) {
-          emitEvent(callbacks, 'checkpoint_approved', run, i)
-        } else {
-          run.status = 'failed'
-          run.error = 'Checkpoint rejected'
-          run.finishedAt = new Date().toISOString()
-          emitEvent(callbacks, 'checkpoint_rejected', run, i)
-          emitEvent(callbacks, 'run_failed', run)
-          return run
-        }
-        continue
-      }
-
-      emitEvent(callbacks, 'step_started', run, i)
-
-      const cmd = stepToCommand(step, slotValues)
-      const result = await callbacks.executeStep(tabId, cmd)
-
-      if (result.ok) {
-        emitEvent(callbacks, 'step_succeeded', run, i, result.data ? { data: result.data } : undefined)
-
-        // After navigate, wait for the page to settle
-        if (step.type === 'navigate') {
-          await sleep(1500)
-        }
-      } else {
-        run.status = 'failed'
-        run.error = result.error
-        run.finishedAt = new Date().toISOString()
-        emitEvent(callbacks, 'step_failed', run, i, { error: result.error })
-        emitEvent(callbacks, 'run_failed', run)
-        return run
-      }
+    const result = await executeSteps(recipe.steps, slotValues, tabId, callbacks, run)
+    if (result === 'failed') {
+      // run.status already set by executeSteps
+      return run
     }
 
     run.status = 'completed'
@@ -92,6 +55,113 @@ export async function dispatchReplay(
   }
 
   return run
+}
+
+/**
+ * Execute a list of steps. Returns 'ok' if all steps succeed, 'failed' if any fails.
+ * Supports recursive execution for conditional branches.
+ */
+async function executeSteps(
+  steps: Step[],
+  slotValues: Record<string, string>,
+  tabId: number,
+  callbacks: ReplayCallbacks,
+  run: Run,
+): Promise<'ok' | 'failed'> {
+  for (let i = 0; i < steps.length; i++) {
+    run.currentStepIndex = i
+    const step = steps[i]
+
+    // Handle checkpoint steps
+    if (step.type === 'checkpoint') {
+      emitEvent(callbacks, 'checkpoint_required', run, i, { message: step.message })
+      const approved = await callbacks.onCheckpoint(step.message)
+      if (approved) {
+        emitEvent(callbacks, 'checkpoint_approved', run, i)
+      } else {
+        run.status = 'failed'
+        run.error = 'Checkpoint rejected'
+        run.finishedAt = new Date().toISOString()
+        emitEvent(callbacks, 'checkpoint_rejected', run, i)
+        emitEvent(callbacks, 'run_failed', run)
+        return 'failed'
+      }
+      continue
+    }
+
+    // Handle conditional steps
+    if (step.type === 'conditional') {
+      const conditionResult = await evaluateCondition(step.condition, tabId, callbacks)
+      emitEvent(callbacks, 'condition_evaluated', run, i, {
+        condition: step.condition,
+        result: conditionResult,
+      })
+
+      const branch = conditionResult ? step.thenSteps : (step.elseSteps ?? [])
+      if (branch.length > 0) {
+        const branchResult = await executeSteps(branch, slotValues, tabId, callbacks, run)
+        if (branchResult === 'failed') return 'failed'
+      }
+      continue
+    }
+
+    emitEvent(callbacks, 'step_started', run, i)
+
+    const cmd = stepToCommand(step, slotValues)
+    const result = await callbacks.executeStep(tabId, cmd)
+
+    if (result.ok) {
+      emitEvent(callbacks, 'step_succeeded', run, i, result.data ? { data: result.data } : undefined)
+
+      // After navigate, wait for the page to settle
+      if (step.type === 'navigate') {
+        await sleep(1500)
+      }
+    } else {
+      run.status = 'failed'
+      run.error = result.error
+      run.finishedAt = new Date().toISOString()
+      emitEvent(callbacks, 'step_failed', run, i, { error: result.error })
+      emitEvent(callbacks, 'run_failed', run)
+      return 'failed'
+    }
+  }
+  return 'ok'
+}
+
+/**
+ * Evaluate a condition for a conditional step.
+ */
+async function evaluateCondition(
+  condition: Condition,
+  tabId: number,
+  callbacks: ReplayCallbacks,
+): Promise<boolean> {
+  switch (condition.type) {
+    case 'element_exists': {
+      const result = await callbacks.executeStep(tabId, {
+        type: 'check_selector',
+        locator: condition.target,
+      })
+      return result.ok && result.data === 'true'
+    }
+    case 'element_not_exists': {
+      const result = await callbacks.executeStep(tabId, {
+        type: 'check_selector',
+        locator: condition.target,
+      })
+      return result.ok && result.data === 'false'
+    }
+    case 'url_matches': {
+      try {
+        const tab = await chrome.tabs.get(tabId)
+        const regex = new RegExp(condition.pattern)
+        return regex.test(tab.url ?? '')
+      } catch {
+        return false
+      }
+    }
+  }
 }
 
 function stepToCommand(step: Step, slotValues: Record<string, string>): StepCommand {
@@ -109,6 +179,12 @@ function stepToCommand(step: Step, slotValues: Record<string, string>): StepComm
     case 'checkpoint':
       // Shouldn't reach here — checkpoints are handled before stepToCommand
       return { type: 'wait', timeout: 0 }
+    case 'conditional':
+      // Shouldn't reach here — conditionals are handled before stepToCommand
+      return { type: 'wait', timeout: 0 }
+    default:
+      // scroll, select, hover — pass through as click-like commands
+      return { type: 'click', locator: (step as { target: Step extends { target: infer T } ? T : never }).target, slotValues }
   }
 }
 

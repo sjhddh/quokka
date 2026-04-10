@@ -9,6 +9,7 @@ import {
 } from '../../lib/messaging'
 import { dispatchReplay, type ReplayCallbacks } from '../../runtime/step-dispatcher'
 import type { StepResult } from '../../runtime/content-executor'
+import { checkAuthContext } from '../../runtime/auth-detector'
 import * as api from '../../lib/api'
 import * as localStorage from '../../lib/local-storage'
 import { fetchRecipeFromUrl, decodeRecipeFromUrl, isQuokkaRecipeUrl } from '../../lib/url-import'
@@ -16,6 +17,12 @@ import { compileTrace as compileTraceLocal } from '@quokka/core/compiler'
 import type { WatchTrace } from '@quokka/core/compiler'
 import { DEMO_RECIPES, findStarterForUrl } from '../../lib/demo-recipes'
 import { incrementStat } from '../../lib/stats'
+import {
+  isScheduledAlarm,
+  recipeIdFromAlarm,
+  getSchedule,
+  logScheduleRun,
+} from '../../lib/scheduler'
 
 const CHECKPOINT_NOTIFICATION_PREFIX = 'quokka-checkpoint-'
 
@@ -229,6 +236,90 @@ export default defineBackground(() => {
       chrome.notifications.clear(notificationId)
     }
   })
+
+  // Handle scheduled recipe alarms
+  chrome.alarms.onAlarm.addListener(async (alarm) => {
+    if (!isScheduledAlarm(alarm.name)) return
+
+    const recipeId = recipeIdFromAlarm(alarm.name)
+    const schedule = await getSchedule(recipeId)
+    if (!schedule) return
+
+    try {
+      // Resolve recipe from local storage
+      const recipe = await localStorage.getRecipe(recipeId)
+      if (!recipe) {
+        await logScheduleRun({
+          recipeId,
+          startedAt: new Date().toISOString(),
+          status: 'failed',
+          error: 'Recipe not found',
+        })
+        return
+      }
+
+      // Open a new tab to the recipe's first navigate URL
+      const firstNav = recipe.steps.find((s) => s.type === 'navigate')
+      const url = firstNav && 'url' in firstNav ? firstNav.url : 'about:blank'
+      const tab = await chrome.tabs.create({ url, active: false })
+      if (!tab.id) throw new Error('Failed to create tab')
+      const tabId = tab.id
+
+      // Wait for tab to finish loading
+      await new Promise<void>((resolve) => {
+        const listener = (
+          updatedTabId: number,
+          info: { status?: string },
+        ) => {
+          if (updatedTabId === tabId && info.status === 'complete') {
+            chrome.tabs.onUpdated.removeListener(listener)
+            resolve()
+          }
+        }
+        chrome.tabs.onUpdated.addListener(listener)
+      })
+
+      const callbacks: ReplayCallbacks = {
+        onEvent: () => {
+          // No UI to forward to for scheduled runs
+        },
+        onCheckpoint: async () => {
+          // Auto-approve checkpoints for scheduled runs
+          return true
+        },
+        executeStep: async (_tid, cmd) => {
+          const response = await chrome.tabs.sendMessage(tabId, {
+            type: MessageType.EXECUTE_STEP,
+            payload: cmd as unknown as ExecuteStepPayload,
+          })
+          return response as StepResult
+        },
+      }
+
+      const run = await dispatchReplay(recipe, schedule.slotValues, tabId, callbacks)
+
+      await logScheduleRun({
+        recipeId,
+        startedAt: new Date().toISOString(),
+        status: run.status === 'completed' ? 'completed' : 'failed',
+        error: run.status === 'failed' ? run.error : undefined,
+      })
+
+      // Close the tab after replay
+      try {
+        await chrome.tabs.remove(tabId)
+      } catch {
+        // Tab may already be closed
+      }
+    } catch (err) {
+      await logScheduleRun({
+        recipeId,
+        startedAt: new Date().toISOString(),
+        status: 'failed',
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+  })
 })
 
 async function handleLocalReplay(
@@ -238,6 +329,19 @@ async function handleLocalReplay(
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
   if (!tab?.id) throw new Error('No active tab')
   const tabId = tab.id
+
+  // Pre-run auth check — non-blocking, sends warnings to UI
+  try {
+    const authCheck = await checkAuthContext(recipe)
+    if (authCheck.warnings.length > 0) {
+      chrome.runtime.sendMessage({
+        type: MessageType.AUTH_WARNING,
+        payload: { warnings: authCheck.warnings },
+      }).catch(() => {})
+    }
+  } catch {
+    // Auth check failure should never block a run
+  }
 
   const callbacks: ReplayCallbacks = {
     onEvent: (event) => {

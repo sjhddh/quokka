@@ -85,7 +85,23 @@ const HoverStepSchema = z.object({
   description: z.string().optional(),
 })
 
-export const StepSchema = z.discriminatedUnion('type', [
+export const ConditionSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('element_exists'),
+    target: LocatorSchema,
+  }),
+  z.object({
+    type: z.literal('element_not_exists'),
+    target: LocatorSchema,
+  }),
+  z.object({
+    type: z.literal('url_matches'),
+    pattern: z.string(),
+  }),
+])
+
+// Base step schemas (non-recursive)
+const BaseStepSchemas = [
   ClickStepSchema,
   TypeStepSchema,
   NavigateStepSchema,
@@ -95,12 +111,43 @@ export const StepSchema = z.discriminatedUnion('type', [
   ScrollStepSchema,
   SelectStepSchema,
   HoverStepSchema,
+] as const
+
+// Use z.lazy for the conditional step since it references StepSchema recursively
+const ConditionalStepSchema = z.object({
+  type: z.literal('conditional'),
+  condition: ConditionSchema,
+  thenSteps: z.lazy(() => z.array(StepSchema)),
+  elseSteps: z.lazy(() => z.array(StepSchema)).optional(),
+  description: z.string().optional(),
+})
+
+export const StepSchema: z.ZodType<
+  | z.infer<typeof ClickStepSchema>
+  | z.infer<typeof TypeStepSchema>
+  | z.infer<typeof NavigateStepSchema>
+  | z.infer<typeof ExtractStepSchema>
+  | z.infer<typeof WaitStepSchema>
+  | z.infer<typeof CheckpointStepSchema>
+  | z.infer<typeof ScrollStepSchema>
+  | z.infer<typeof SelectStepSchema>
+  | z.infer<typeof HoverStepSchema>
+  | {
+      type: 'conditional'
+      condition: z.infer<typeof ConditionSchema>
+      thenSteps: z.infer<typeof StepSchema>[]
+      elseSteps?: z.infer<typeof StepSchema>[]
+      description?: string
+    }
+> = z.union([
+  z.discriminatedUnion('type', [...BaseStepSchemas]),
+  ConditionalStepSchema,
 ])
 
 /** Allowlisted step types for security verification */
 export const ALLOWED_STEP_TYPES = [
   'navigate', 'click', 'type', 'wait', 'extract',
-  'scroll', 'select', 'hover', 'checkpoint',
+  'scroll', 'select', 'hover', 'checkpoint', 'conditional',
 ] as const
 
 export const AuthorSchema = z.object({

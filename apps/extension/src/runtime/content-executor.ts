@@ -2,7 +2,7 @@ import type { Locator } from '@quokka/shared'
 import { findElement, waitForElement, interpolate } from './selector-utils'
 
 export interface StepCommand {
-  type: 'click' | 'type' | 'navigate' | 'extract' | 'wait'
+  type: 'click' | 'type' | 'navigate' | 'extract' | 'wait' | 'check_selector'
   locator?: Locator
   value?: string
   url?: string
@@ -70,6 +70,12 @@ export async function executeStepCommand(cmd: StepCommand): Promise<StepResult> 
         if (!el) return { ok: false, error: `Element not found: ${JSON.stringify(cmd.locator)}` }
         const data = el.textContent?.trim() ?? ''
         return { ok: true, data }
+      }
+
+      case 'check_selector': {
+        if (!cmd.locator) return { ok: false, error: 'No locator for check_selector' }
+        const found = findElement(cmd.locator)
+        return { ok: true, data: found ? 'true' : 'false' }
       }
 
       default:

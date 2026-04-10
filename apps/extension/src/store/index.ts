@@ -5,7 +5,7 @@ import type { ProviderConfig } from '../lib/api'
 import * as localStorage from '../lib/local-storage'
 import * as llmStorage from '../lib/llm-storage'
 import { generateWithProvider } from '../lib/llm-client'
-import { sendToBackground, MessageType, type CheckpointPendingPayload, type ReplayEventPayload } from '../lib/messaging'
+import { sendToBackground, MessageType, type CheckpointPendingPayload, type ReplayEventPayload, type AuthWarningPayload } from '../lib/messaging'
 
 export interface PendingCheckpoint {
   runId: string
@@ -21,6 +21,7 @@ export interface QuokkaStore {
   companionConnected: boolean
   useLocalRuntime: boolean
   pendingCheckpoint: PendingCheckpoint | null
+  authWarnings: string[]
   generatingRecipe: boolean
   generatedRecipe: Recipe | null
   generateError: string | null
@@ -52,6 +53,7 @@ export const useQuokkaStore = create<QuokkaStore>((set, get) => ({
   companionConnected: false,
   useLocalRuntime: true,
   pendingCheckpoint: null,
+  authWarnings: [],
   generatingRecipe: false,
   generatedRecipe: null,
   generateError: null,
@@ -88,7 +90,7 @@ export const useQuokkaStore = create<QuokkaStore>((set, get) => ({
   startRun: async (recipeId, slotValues) => {
     try {
       const run = await api.createRun(recipeId, slotValues)
-      set({ currentRun: run, runEvents: [] })
+      set({ currentRun: run, runEvents: [], authWarnings: [] })
 
       // Tell background to orchestrate
       sendToBackground({
@@ -173,7 +175,7 @@ export const useQuokkaStore = create<QuokkaStore>((set, get) => ({
         slotValues,
         currentStepIndex: 0,
       }
-      set({ currentRun: run, runEvents: [] })
+      set({ currentRun: run, runEvents: [], authWarnings: [] })
 
       const response = await sendToBackground<{ ok: boolean; run?: Run; error?: string }>({
         type: MessageType.START_LOCAL_REPLAY,
@@ -353,6 +355,11 @@ chrome.runtime.onMessage.addListener((message) => {
         message: payload.message,
       },
     })
+  }
+
+  if (message.type === MessageType.AUTH_WARNING) {
+    const { warnings } = message.payload as AuthWarningPayload
+    useQuokkaStore.setState({ authWarnings: warnings })
   }
 
   if (message.type === MessageType.REPLAY_EVENT) {

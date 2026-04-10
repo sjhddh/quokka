@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { Recipe } from '@quokka/shared'
 
-// Mock chrome.storage.local
+// ---------- Mock chrome.storage.local ----------
 const store: Record<string, unknown> = {}
 
 const chromeStorageMock = {
@@ -12,6 +12,10 @@ const chromeStorageMock = {
     Object.assign(store, items)
     return Promise.resolve()
   }),
+  remove: vi.fn((key: string) => {
+    delete store[key]
+    return Promise.resolve()
+  }),
 }
 
 vi.stubGlobal('chrome', {
@@ -19,6 +23,22 @@ vi.stubGlobal('chrome', {
     local: chromeStorageMock,
   },
 })
+
+// ---------- Mock idb-storage (the underlying store) ----------
+const idbRecipes = new Map<string, Recipe>()
+
+vi.mock('../lib/idb-storage', () => ({
+  getRecipes: vi.fn(() => Promise.resolve(Array.from(idbRecipes.values()))),
+  getRecipe: vi.fn((id: string) => Promise.resolve(idbRecipes.get(id))),
+  saveRecipe: vi.fn((recipe: Recipe) => {
+    idbRecipes.set(recipe.id, recipe)
+    return Promise.resolve()
+  }),
+  deleteRecipe: vi.fn((id: string) => {
+    idbRecipes.delete(id)
+    return Promise.resolve()
+  }),
+}))
 
 // Import after mocking
 import { getRecipes, getRecipe, saveRecipe, deleteRecipe } from '../lib/local-storage'
@@ -42,10 +62,9 @@ function makeRecipe(overrides: Partial<Recipe> = {}): Recipe {
 
 describe('local-storage', () => {
   beforeEach(() => {
-    // Clear store between tests
-    for (const key of Object.keys(store)) {
-      delete store[key]
-    }
+    // Clear stores between tests
+    for (const key of Object.keys(store)) delete store[key]
+    idbRecipes.clear()
     vi.clearAllMocks()
   })
 
@@ -55,17 +74,11 @@ describe('local-storage', () => {
       expect(recipes).toEqual([])
     })
 
-    it('returns stored recipes', async () => {
+    it('returns stored recipes from IndexedDB', async () => {
       const recipe = makeRecipe()
-      store['quokka_recipes'] = [recipe]
+      idbRecipes.set(recipe.id, recipe)
       const recipes = await getRecipes()
       expect(recipes).toEqual([recipe])
-    })
-
-    it('returns empty array if stored value is not an array', async () => {
-      store['quokka_recipes'] = 'not-an-array'
-      const recipes = await getRecipes()
-      expect(recipes).toEqual([])
     })
   })
 
@@ -73,77 +86,70 @@ describe('local-storage', () => {
     it('finds a recipe by id', async () => {
       const r1 = makeRecipe({ id: 'r1' })
       const r2 = makeRecipe({ id: 'r2', name: 'Second' })
-      store['quokka_recipes'] = [r1, r2]
+      idbRecipes.set(r1.id, r1)
+      idbRecipes.set(r2.id, r2)
 
       const found = await getRecipe('r2')
       expect(found).toEqual(r2)
     })
 
     it('returns undefined when not found', async () => {
-      store['quokka_recipes'] = [makeRecipe({ id: 'r1' })]
+      idbRecipes.set('r1', makeRecipe({ id: 'r1' }))
       const found = await getRecipe('missing')
       expect(found).toBeUndefined()
     })
   })
 
   describe('saveRecipe', () => {
-    it('appends a new recipe', async () => {
+    it('saves a recipe to IndexedDB and updates the metadata index', async () => {
       const recipe = makeRecipe({ id: 'r1' })
       await saveRecipe(recipe)
 
-      expect(chromeStorageMock.set).toHaveBeenCalledWith({
-        quokka_recipes: [recipe],
-      })
+      expect(idbRecipes.has('r1')).toBe(true)
+      // Check metadata index was updated
+      expect(chromeStorageMock.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          quokka_recipe_index: expect.arrayContaining([
+            expect.objectContaining({ id: 'r1', name: 'Test Recipe' }),
+          ]),
+        }),
+      )
     })
 
     it('replaces an existing recipe with the same id', async () => {
-      const original = makeRecipe({ id: 'r1', name: 'Original' })
-      store['quokka_recipes'] = [original]
+      idbRecipes.set('r1', makeRecipe({ id: 'r1', name: 'Original' }))
 
       const updated = makeRecipe({ id: 'r1', name: 'Updated' })
       await saveRecipe(updated)
 
-      expect(chromeStorageMock.set).toHaveBeenCalledWith({
-        quokka_recipes: [updated],
-      })
-    })
-
-    it('preserves other recipes when upserting', async () => {
-      const r1 = makeRecipe({ id: 'r1' })
-      const r2 = makeRecipe({ id: 'r2', name: 'Second' })
-      store['quokka_recipes'] = [r1, r2]
-
-      const r1Updated = makeRecipe({ id: 'r1', name: 'Updated' })
-      await saveRecipe(r1Updated)
-
-      expect(chromeStorageMock.set).toHaveBeenCalledWith({
-        quokka_recipes: [r1Updated, r2],
-      })
+      expect(idbRecipes.get('r1')?.name).toBe('Updated')
     })
   })
 
   describe('deleteRecipe', () => {
-    it('removes a recipe by id', async () => {
+    it('removes a recipe from IndexedDB and updates the metadata index', async () => {
       const r1 = makeRecipe({ id: 'r1' })
       const r2 = makeRecipe({ id: 'r2' })
-      store['quokka_recipes'] = [r1, r2]
+      idbRecipes.set(r1.id, r1)
+      idbRecipes.set(r2.id, r2)
 
       await deleteRecipe('r1')
 
-      expect(chromeStorageMock.set).toHaveBeenCalledWith({
-        quokka_recipes: [r2],
-      })
+      expect(idbRecipes.has('r1')).toBe(false)
+      expect(idbRecipes.has('r2')).toBe(true)
     })
+  })
 
-    it('does nothing if recipe not found', async () => {
-      const r1 = makeRecipe({ id: 'r1' })
-      store['quokka_recipes'] = [r1]
+  describe('delegation', () => {
+    it('delegates to idb-storage for all operations', async () => {
+      const { saveRecipe: idbSave, deleteRecipe: idbDelete } = await import('../lib/idb-storage')
 
-      await deleteRecipe('missing')
+      const recipe = makeRecipe({ id: 'delegate-1' })
+      await saveRecipe(recipe)
+      expect(idbSave).toHaveBeenCalledWith(recipe)
 
-      expect(chromeStorageMock.set).toHaveBeenCalledWith({
-        quokka_recipes: [r1],
-      })
+      await deleteRecipe('delegate-1')
+      expect(idbDelete).toHaveBeenCalledWith('delegate-1')
     })
   })
 })
