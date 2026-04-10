@@ -1,0 +1,91 @@
+{
+  "version": "2.0",
+  "id": "a1b2c3d4-1001-4000-8000-000000000008",
+  "name": "Report Generation and Download",
+  "description": "Navigate to a reporting section, select a report type, configure parameters, generate the report, and download it.",
+  "intent": "Generate a configured report and download the output file",
+  "steps": [
+    {
+      "type": "action",
+      "id": "report-01",
+      "intent": "Navigate to the reports section",
+      "context_hint": "A navigation link labeled 'Reports', 'Reporting', or 'Analytics'",
+      "likelyNavigates": true
+    },
+    {
+      "type": "page_boundary",
+      "id": "report-02",
+      "expectedUrl": "*/reports*",
+      "waitCondition": "networkIdle"
+    },
+    {
+      "type": "action",
+      "id": "report-03",
+      "intent": "Select the desired report type",
+      "context_hint": "A dropdown, card, or list of available report types",
+      "value": "{{report_type}}",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "report-04",
+      "intent": "Set the reporting period start date",
+      "context_hint": "A date input for the start of the reporting period",
+      "value": "{{start_date}}",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "report-05",
+      "intent": "Set the reporting period end date",
+      "context_hint": "A date input for the end of the reporting period",
+      "value": "{{end_date}}",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "report-06",
+      "intent": "Select the output format for the report",
+      "context_hint": "A dropdown or radio buttons for format like PDF, CSV, or Excel",
+      "value": "{{format}}",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "report-07",
+      "intent": "Click the generate report button",
+      "context_hint": "A button labeled 'Generate', 'Run Report', or 'Create Report'",
+      "verification": "Report generation starts, progress indicator or spinner appears",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "report-08",
+      "intent": "Wait for the report to finish generating",
+      "context_hint": "Wait for the progress bar to complete or a 'Ready' status to appear",
+      "verification": "Report status shows as complete or a download link appears",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "report-09",
+      "intent": "Click the download button to save the generated report",
+      "context_hint": "A 'Download' button or link that appeared after generation completed",
+      "verification": "File download is initiated",
+      "likelyNavigates": false
+    }
+  ],
+  "variables": {
+    "report_type": "Monthly Sales Summary",
+    "start_date": "2026-03-01",
+    "end_date": "2026-03-31",
+    "format": "PDF"
+  },
+  "hosts": ["reports.example.com"],
+  "meta": {
+    "createdFrom": "code",
+    "tags": ["reports", "download", "generate", "seed"]
+  },
+  "createdAt": "2026-04-11T00:00:00.000Z",
+  "updatedAt": "2026-04-11T00:00:00.000Z"
+}

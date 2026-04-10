@@ -1,0 +1,92 @@
+{
+  "version": "2.0",
+  "id": "a1b2c3d4-1001-4000-8000-000000000007",
+  "name": "CRM Contact Update",
+  "description": "Search for a contact in a CRM, open their record, update a field, and save the changes.",
+  "intent": "Find a CRM contact and update their record with new information",
+  "steps": [
+    {
+      "type": "action",
+      "id": "crm-01",
+      "intent": "Navigate to the CRM contacts section",
+      "context_hint": "Look for a 'Contacts', 'People', or 'Customers' link in the main navigation",
+      "likelyNavigates": true
+    },
+    {
+      "type": "page_boundary",
+      "id": "crm-02",
+      "expectedUrl": "*/contacts*",
+      "waitCondition": "networkIdle"
+    },
+    {
+      "type": "action",
+      "id": "crm-03",
+      "intent": "Search for the contact by name",
+      "context_hint": "A search or filter input within the contacts list",
+      "value": "{{contact_name}}",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "crm-04",
+      "intent": "Wait for search results to filter and verify the contact appears",
+      "verification": "The target contact is visible in the filtered list",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "crm-05",
+      "intent": "Click on the contact to open their detail record",
+      "context_hint": "The contact row or card in the search results",
+      "likelyNavigates": true
+    },
+    {
+      "type": "page_boundary",
+      "id": "crm-06",
+      "expectedUrl": "*/contacts/*",
+      "waitCondition": "networkIdle"
+    },
+    {
+      "type": "action",
+      "id": "crm-07",
+      "intent": "Click the edit button or make the target field editable",
+      "context_hint": "An 'Edit' button, pencil icon, or click directly on the field to make it editable",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "crm-08",
+      "intent": "Clear the existing value in the target field and enter the new value",
+      "context_hint": "The field specified by the field_name variable",
+      "value": "{{new_value}}",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "crm-09",
+      "intent": "Save the updated contact record",
+      "context_hint": "A 'Save', 'Update', or checkmark button to confirm changes",
+      "verification": "Success notification appears or the field shows the updated value",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "crm-10",
+      "intent": "Verify the record was saved with the new value",
+      "verification": "The field now displays the updated value {{new_value}}",
+      "likelyNavigates": false
+    }
+  ],
+  "variables": {
+    "contact_name": "Acme Corp",
+    "field_name": "Phone Number",
+    "new_value": "+1-555-000-1234"
+  },
+  "hosts": ["crm.example.com"],
+  "meta": {
+    "createdFrom": "code",
+    "tags": ["crm", "contacts", "update", "seed"]
+  },
+  "createdAt": "2026-04-11T00:00:00.000Z",
+  "updatedAt": "2026-04-11T00:00:00.000Z"
+}

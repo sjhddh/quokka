@@ -1,0 +1,112 @@
+{
+  "version": "2.0",
+  "id": "a1b2c3d4-1001-4000-8000-000000000002",
+  "name": "Multi-Field Form Fill",
+  "description": "Fill out a multi-field contact or registration form with name, email, phone, and address, then submit.",
+  "intent": "Complete and submit a multi-field form",
+  "steps": [
+    {
+      "type": "action",
+      "id": "form-01",
+      "intent": "Navigate to the form page",
+      "context_hint": "Look for a link to a registration, contact, or signup form",
+      "likelyNavigates": true
+    },
+    {
+      "type": "page_boundary",
+      "id": "form-02",
+      "expectedUrl": "*/form*",
+      "waitCondition": "domContentLoaded"
+    },
+    {
+      "type": "action",
+      "id": "form-03",
+      "intent": "Enter full name into the name field",
+      "context_hint": "Input labeled 'Full Name', 'Name', or split into first/last name fields",
+      "value": "{{full_name}}",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "form-04",
+      "intent": "Enter email address into the email field",
+      "context_hint": "Input labeled 'Email' or 'Email Address'",
+      "value": "{{email}}",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "form-05",
+      "intent": "Enter phone number into the phone field",
+      "context_hint": "Input labeled 'Phone', 'Phone Number', or 'Mobile'",
+      "value": "{{phone}}",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "form-06",
+      "intent": "Enter street address into the address field",
+      "context_hint": "Input labeled 'Address', 'Street Address', or the first line of an address block",
+      "value": "{{address}}",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "form-07",
+      "intent": "Enter city into the city field",
+      "value": "{{city}}",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "form-08",
+      "intent": "Select state or region from the dropdown",
+      "value": "{{state}}",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "form-09",
+      "intent": "Enter zip or postal code",
+      "value": "{{zip_code}}",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "form-10",
+      "intent": "Click the submit button to send the form",
+      "context_hint": "A button labeled 'Submit', 'Send', or 'Register'",
+      "verification": "Form submission confirmation or success message appears",
+      "likelyNavigates": true
+    },
+    {
+      "type": "page_boundary",
+      "id": "form-11",
+      "waitCondition": "networkIdle"
+    },
+    {
+      "type": "action",
+      "id": "form-12",
+      "intent": "Verify the form was submitted successfully",
+      "context_hint": "Look for a confirmation message, thank-you page, or success banner",
+      "verification": "Success confirmation is visible on the page",
+      "likelyNavigates": false
+    }
+  ],
+  "variables": {
+    "full_name": "Jane Doe",
+    "email": "jane.doe@example.com",
+    "phone": "+1-555-867-5309",
+    "address": "123 Main Street",
+    "city": "San Francisco",
+    "state": "California",
+    "zip_code": "94102"
+  },
+  "hosts": ["forms.example.com"],
+  "meta": {
+    "createdFrom": "code",
+    "tags": ["form", "input", "seed"]
+  },
+  "createdAt": "2026-04-11T00:00:00.000Z",
+  "updatedAt": "2026-04-11T00:00:00.000Z"
+}

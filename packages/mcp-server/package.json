@@ -1,0 +1,35 @@
+{
+  "name": "@quokka/mcp-server",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "quokka-mcp": "dist/index.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@quokka/core": "workspace:*",
+    "@quokka/shared": "workspace:*",
+    "@quokka/runner-playwright": "workspace:*",
+    "nanoid": "^5.0.9",
+    "zod": "^3.24.2"
+  },
+  "peerDependencies": {
+    "playwright": "^1.50.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "playwright": "^1.52.0"
+  }
+}

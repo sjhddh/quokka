@@ -1,0 +1,84 @@
+{
+  "version": "2.0",
+  "id": "a1b2c3d4-1001-4000-8000-000000000005",
+  "name": "Dashboard Navigation",
+  "description": "Navigate through a dashboard using sidebar menu to reach a specific section and sub-tab, then verify content loads.",
+  "intent": "Navigate the dashboard sidebar to a specific section and sub-tab",
+  "steps": [
+    {
+      "type": "action",
+      "id": "dash-01",
+      "intent": "Navigate to the dashboard home page",
+      "context_hint": "Go to the main dashboard URL or click a 'Dashboard' link",
+      "likelyNavigates": true
+    },
+    {
+      "type": "page_boundary",
+      "id": "dash-02",
+      "expectedUrl": "*/dashboard*",
+      "waitCondition": "networkIdle"
+    },
+    {
+      "type": "action",
+      "id": "dash-03",
+      "intent": "Locate the sidebar navigation menu",
+      "context_hint": "A vertical navigation panel on the left side of the page",
+      "verification": "Sidebar with navigation links is visible",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "dash-04",
+      "intent": "Click the target section in the sidebar menu",
+      "context_hint": "A sidebar menu item matching the target section name",
+      "value": "{{section_name}}",
+      "likelyNavigates": true
+    },
+    {
+      "type": "page_boundary",
+      "id": "dash-05",
+      "waitCondition": "networkIdle"
+    },
+    {
+      "type": "action",
+      "id": "dash-06",
+      "intent": "Verify the section page has loaded",
+      "verification": "Section heading or content area matches the expected section",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "dash-07",
+      "intent": "Click the target sub-tab within the section",
+      "context_hint": "A tab bar or secondary navigation with sub-section tabs",
+      "value": "{{sub_tab_name}}",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "dash-08",
+      "intent": "Wait for the sub-tab content to load",
+      "verification": "The sub-tab content panel is populated with data",
+      "likelyNavigates": false
+    },
+    {
+      "type": "action",
+      "id": "dash-09",
+      "intent": "Verify the expected content is displayed in the sub-tab",
+      "context_hint": "Look for tables, charts, or data relevant to the sub-tab",
+      "verification": "Content area shows data or components matching {{sub_tab_name}}",
+      "likelyNavigates": false
+    }
+  ],
+  "variables": {
+    "section_name": "Team Management",
+    "sub_tab_name": "Active Members"
+  },
+  "hosts": ["dashboard.example.com"],
+  "meta": {
+    "createdFrom": "code",
+    "tags": ["dashboard", "navigation", "sidebar", "seed"]
+  },
+  "createdAt": "2026-04-11T00:00:00.000Z",
+  "updatedAt": "2026-04-11T00:00:00.000Z"
+}
