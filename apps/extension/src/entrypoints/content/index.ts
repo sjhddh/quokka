@@ -9,6 +9,7 @@ export default defineContentScript({
   main() {
     const bridge = new ContentBridge()
     const recorder = new WatchRecorder()
+    const failureOverlay = new FailureOverlay()
 
     // Broadcast recording events to the pill via custom DOM events
     function notifyPill(detail: Record<string, unknown>) {
@@ -79,6 +80,27 @@ export default defineContentScript({
             totalSteps: (payload as Record<string, unknown>).totalSteps,
             status: (payload as Record<string, unknown>).status,
           })
+          sendResponse({ ok: true })
+          return false
+        }
+
+        case MessageType.SHOW_FAILURE_OVERLAY: {
+          const overlayPayload = payload as ShowFailureOverlayPayload
+          failureOverlay.show(overlayPayload.selector, overlayPayload.error, (action) => {
+            chrome.runtime.sendMessage({
+              type: MessageType.STEP_PAUSE_RESPONSE,
+              payload: {
+                runId: '',
+                action,
+              } satisfies StepPauseResponsePayload,
+            })
+          })
+          sendResponse({ ok: true })
+          return false
+        }
+
+        case MessageType.HIDE_FAILURE_OVERLAY: {
+          failureOverlay.hide()
           sendResponse({ ok: true })
           return false
         }

@@ -22,6 +22,8 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false)
   const fetchRecipes = useQuokkaStore((s) => s.fetchRecipes)
   const companionConnected = useQuokkaStore((s) => s.companionConnected)
+  const useLocalRuntime = useQuokkaStore((s) => s.useLocalRuntime)
+  const setUseLocalRuntime = useQuokkaStore((s) => s.setUseLocalRuntime)
 
   useEffect(() => {
     fetchRecipes()
@@ -51,6 +53,17 @@ export default function App() {
                 clipRule="evenodd"
               />
             </svg>
+          </button>
+          <button
+            onClick={() => setUseLocalRuntime(!useLocalRuntime)}
+            className={`text-xs px-1.5 py-0.5 rounded ${
+              useLocalRuntime
+                ? 'bg-green-500/30 text-green-200'
+                : 'bg-white/20 text-white/70'
+            }`}
+            title={useLocalRuntime ? 'Local runtime (click to switch to companion)' : 'Companion mode (click to switch to local)'}
+          >
+            {useLocalRuntime ? 'Local' : 'Remote'}
           </button>
           <span
             className={`w-2 h-2 rounded-full ${companionConnected ? 'bg-green-400' : 'bg-red-400'}`}

@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { Recipe, Run, RunEvent } from '@quokka/shared'
 import * as api from '../lib/api'
 import type { ProviderConfig } from '../lib/api'
-import { sendToBackground, MessageType, type CheckpointPendingPayload } from '../lib/messaging'
+import { sendToBackground, MessageType, type CheckpointPendingPayload, type ReplayEventPayload } from '../lib/messaging'
 
 export interface PendingCheckpoint {
   runId: string
@@ -16,6 +16,7 @@ export interface QuokkaStore {
   runEvents: RunEvent[]
   isRecording: boolean
   companionConnected: boolean
+  useLocalRuntime: boolean
   pendingCheckpoint: PendingCheckpoint | null
   generatingRecipe: boolean
   generatedRecipe: Recipe | null
@@ -24,6 +25,8 @@ export interface QuokkaStore {
   _eventSource: EventSource | null
   fetchRecipes: () => Promise<void>
   startRun: (recipeId: string, slotValues: Record<string, string>) => Promise<void>
+  startLocalReplay: (recipe: Recipe, slotValues: Record<string, string>) => Promise<void>
+  setUseLocalRuntime: (useLocal: boolean) => void
   setRecording: (recording: boolean) => void
   approveCheckpoint: () => void
   rejectCheckpoint: () => void
@@ -40,6 +43,7 @@ export const useQuokkaStore = create<QuokkaStore>((set, get) => ({
   runEvents: [],
   isRecording: false,
   companionConnected: false,
+  useLocalRuntime: true,
   pendingCheckpoint: null,
   generatingRecipe: false,
   generatedRecipe: null,
@@ -138,6 +142,56 @@ export const useQuokkaStore = create<QuokkaStore>((set, get) => ({
     }
   },
 
+  startLocalReplay: async (recipe, slotValues) => {
+    try {
+      const run: Run = {
+        id: '',
+        recipeId: recipe.id,
+        status: 'running',
+        slotValues,
+        currentStepIndex: 0,
+      }
+      set({ currentRun: run, runEvents: [] })
+
+      const response = await sendToBackground<{ ok: boolean; run?: Run; error?: string }>({
+        type: MessageType.START_LOCAL_REPLAY,
+        payload: { recipe, slotValues },
+      })
+
+      if (response.ok && response.run) {
+        set({ currentRun: response.run })
+      } else {
+        set({
+          currentRun: {
+            id: '',
+            recipeId: recipe.id,
+            status: 'failed',
+            slotValues,
+            currentStepIndex: 0,
+            error: response.error ?? 'Local replay failed',
+          },
+        })
+      }
+    } catch (err) {
+      set({
+        currentRun: {
+          id: '',
+          recipeId: recipe.id,
+          status: 'failed',
+          slotValues,
+          currentStepIndex: 0,
+          error: err instanceof Error ? err.message : 'Unknown error',
+        },
+      })
+    }
+  },
+
+  setUseLocalRuntime: (useLocal) => {
+    set({ useLocalRuntime: useLocal })
+    // Persist to chrome.storage
+    chrome.storage.local.set({ useLocalRuntime: useLocal })
+  },
+
   setRecording: (recording) => set({ isRecording: recording }),
 
   approveCheckpoint: () => {
@@ -195,7 +249,7 @@ export const useQuokkaStore = create<QuokkaStore>((set, get) => ({
   },
 }))
 
-// Listen for CHECKPOINT_PENDING messages from background
+// Listen for messages from background
 chrome.runtime.onMessage.addListener((message) => {
   if (message.type === MessageType.CHECKPOINT_PENDING) {
     const payload = message.payload as CheckpointPendingPayload
@@ -206,5 +260,31 @@ chrome.runtime.onMessage.addListener((message) => {
         message: payload.message,
       },
     })
+  }
+
+  if (message.type === MessageType.REPLAY_EVENT) {
+    const { event } = message.payload as ReplayEventPayload
+    useQuokkaStore.setState((state) => ({
+      runEvents: [...state.runEvents, event],
+      currentRun: state.currentRun
+        ? {
+            ...state.currentRun,
+            status:
+              event.type === 'run_completed'
+                ? 'completed'
+                : event.type === 'run_failed'
+                  ? 'failed'
+                  : state.currentRun.status,
+            currentStepIndex: event.stepIndex ?? state.currentRun.currentStepIndex,
+          }
+        : null,
+    }))
+  }
+})
+
+// Load persisted useLocalRuntime setting
+chrome.storage.local.get('useLocalRuntime', (result) => {
+  if (typeof result.useLocalRuntime === 'boolean') {
+    useQuokkaStore.setState({ useLocalRuntime: result.useLocalRuntime })
   }
 })

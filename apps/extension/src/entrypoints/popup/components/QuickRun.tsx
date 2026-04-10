@@ -6,6 +6,9 @@ export default function QuickRun() {
   const recipes = useQuokkaStore((s) => s.recipes)
   const currentRun = useQuokkaStore((s) => s.currentRun)
   const startRun = useQuokkaStore((s) => s.startRun)
+  const startLocalReplay = useQuokkaStore((s) => s.startLocalReplay)
+  const useLocalRuntime = useQuokkaStore((s) => s.useLocalRuntime)
+  const companionConnected = useQuokkaStore((s) => s.companionConnected)
 
   const [selectedId, setSelectedId] = useState('')
   const [slotValues, setSlotValues] = useState<Record<string, string>>({})
@@ -15,6 +18,15 @@ export default function QuickRun() {
 
   const handleRun = async () => {
     if (!selectedId) return
+
+    // Use local runtime if enabled, or if companion is not connected
+    if (useLocalRuntime || !companionConnected) {
+      if (selectedRecipe) {
+        await startLocalReplay(selectedRecipe, slotValues)
+        return
+      }
+    }
+
     await startRun(selectedId, slotValues)
   }
 
