@@ -1,0 +1,46 @@
+{
+  "quokka_version": "0.1.0",
+  "exported_at": "2025-01-01T00:00:00.000Z",
+  "recipe": {
+    "id": "community-github-star-repo",
+    "name": "Star a GitHub Repo",
+    "description": "Navigate to a GitHub repository and star it",
+    "version": "0.1.0",
+    "schemaVersion": 1,
+    "hosts": ["github.com"],
+    "slots": [
+      {
+        "key": "repo",
+        "label": "Repository (owner/name)",
+        "type": "string"
+      }
+    ],
+    "guards": [],
+    "steps": [
+      {
+        "type": "navigate",
+        "url": "https://github.com/{{repo}}",
+        "description": "Go to the repository page"
+      },
+      {
+        "type": "wait",
+        "target": { "css": "button[aria-label='Star this repository']" },
+        "timeout": 5000,
+        "description": "Wait for the Star button to load"
+      },
+      {
+        "type": "checkpoint",
+        "message": "About to star this repository. Continue?"
+      },
+      {
+        "type": "click",
+        "target": { "css": "button[aria-label='Star this repository']" },
+        "description": "Click the Star button"
+      }
+    ],
+    "meta": {
+      "createdFrom": "code",
+      "tags": ["github", "social", "example"]
+    }
+  }
+}

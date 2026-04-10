@@ -1,0 +1,42 @@
+{
+  "quokka_version": "0.1.0",
+  "exported_at": "2025-01-01T00:00:00.000Z",
+  "recipe": {
+    "id": "community-google-search",
+    "name": "Google Search",
+    "description": "Navigate to Google and search for a query",
+    "version": "0.1.0",
+    "schemaVersion": 1,
+    "hosts": ["google.com", "www.google.com"],
+    "slots": [
+      {
+        "key": "query",
+        "label": "Search query",
+        "type": "string"
+      }
+    ],
+    "guards": [],
+    "steps": [
+      {
+        "type": "navigate",
+        "url": "https://www.google.com",
+        "description": "Go to Google"
+      },
+      {
+        "type": "type",
+        "target": { "css": "textarea[name='q']" },
+        "value": "{{query}}",
+        "description": "Type the search query"
+      },
+      {
+        "type": "click",
+        "target": { "css": "input[name='btnK']" },
+        "description": "Click the Search button"
+      }
+    ],
+    "meta": {
+      "createdFrom": "code",
+      "tags": ["search", "google", "example"]
+    }
+  }
+}

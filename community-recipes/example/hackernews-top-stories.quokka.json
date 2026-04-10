@@ -1,0 +1,47 @@
+{
+  "quokka_version": "0.1.0",
+  "exported_at": "2025-01-01T00:00:00.000Z",
+  "recipe": {
+    "id": "community-hackernews-top-stories",
+    "name": "Extract Hacker News Top Stories",
+    "description": "Navigate to Hacker News and extract the titles and links of top stories",
+    "version": "0.1.0",
+    "schemaVersion": 1,
+    "hosts": ["news.ycombinator.com"],
+    "slots": [],
+    "guards": [
+      {
+        "type": "url",
+        "expect": "news.ycombinator.com",
+        "timeout": 5000
+      }
+    ],
+    "steps": [
+      {
+        "type": "navigate",
+        "url": "https://news.ycombinator.com",
+        "description": "Go to Hacker News"
+      },
+      {
+        "type": "wait",
+        "target": { "css": ".titleline > a" },
+        "timeout": 5000,
+        "description": "Wait for stories to load"
+      },
+      {
+        "type": "extract",
+        "target": { "css": ".titleline > a" },
+        "as": "topStories",
+        "description": "Extract all story titles and links"
+      },
+      {
+        "type": "checkpoint",
+        "message": "Extracted top stories. Save results?"
+      }
+    ],
+    "meta": {
+      "createdFrom": "code",
+      "tags": ["hackernews", "scraping", "example"]
+    }
+  }
+}

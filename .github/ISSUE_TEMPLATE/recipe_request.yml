@@ -1,0 +1,60 @@
+name: Recipe Request
+description: Request a community recipe for a specific website or task
+title: "[Recipe]: "
+labels: ["recipe-request", "community"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Want a recipe for a specific site or workflow? Describe it here and the community can build it!
+
+  - type: input
+    id: target-site
+    attributes:
+      label: Target website
+      description: The website or web app this recipe is for.
+      placeholder: "e.g. github.com, twitter.com, notion.so"
+    validations:
+      required: true
+
+  - type: textarea
+    id: task-description
+    attributes:
+      label: I want a recipe that...
+      description: Describe the task the recipe should automate. Be specific about the steps.
+      placeholder: |
+        e.g. "Goes to a GitHub repo, clicks the Star button, and confirms the action"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Manual steps (if known)
+      description: Walk through how you do this manually. This helps recipe authors understand the flow.
+      placeholder: |
+        1. Navigate to the repo page
+        2. Click the "Star" button in the top-right
+        3. ...
+    validations:
+      required: false
+
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: How often would you run this?
+      options:
+        - Daily
+        - Weekly
+        - Occasionally
+        - One-time task
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Screenshots, URLs, or any special requirements (login needed, dynamic content, etc.).
+    validations:
+      required: false

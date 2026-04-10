@@ -1,0 +1,59 @@
+name: Feature Request
+description: Suggest a new feature or improvement for Quokka
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea for Quokka? We'd love to hear it! Please describe your use case so we can understand the motivation.
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case
+      description: What problem are you trying to solve? What workflow would this improve?
+      placeholder: Describe the use case...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed solution
+      description: How do you think this should work? Be as specific as you like.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Have you considered any workarounds or alternative approaches?
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of Quokka does this relate to?
+      options:
+        - Extension (popup / content scripts)
+        - Recipe DSL / authoring
+        - Runtime (step execution)
+        - Companion server
+        - Storage
+        - CLI / headless
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Mockups, screenshots, links to similar tools, or anything else.
+    validations:
+      required: false
