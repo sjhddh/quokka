@@ -98,10 +98,14 @@ export function compileTrace(
   })
 
   // Step 7: Assemble Recipe
+  const now = new Date().toISOString()
   const recipe: Recipe = {
     id: nanoid(),
     name: options?.name ?? 'Untitled Recipe',
     version: '0.1.0',
+    schemaVersion: 1,
+    createdAt: now,
+    updatedAt: now,
     hosts,
     slots,
     guards: [],

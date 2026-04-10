@@ -98,10 +98,14 @@ describe('runHeadless', () => {
   })
 
   function makeRecipe(steps: any[]) {
+    const now = new Date().toISOString()
     return {
       id: 'test',
       name: 'Test',
       version: '0.1.0',
+      schemaVersion: 1 as const,
+      createdAt: now,
+      updatedAt: now,
       hosts: ['example.com'],
       slots: [],
       guards: [],

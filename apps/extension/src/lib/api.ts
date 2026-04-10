@@ -1,4 +1,4 @@
-import type { Recipe, Run } from '@quokka/shared'
+import type { Recipe, Run, QuokkaExport } from '@quokka/shared'
 
 export interface ProviderConfig {
   id: string
@@ -40,7 +40,7 @@ export function createRecipe(recipe: Omit<Recipe, 'id'>): Promise<Recipe> {
   })
 }
 
-export function exportRecipe(id: string): Promise<Recipe> {
+export function exportRecipe(id: string): Promise<QuokkaExport> {
   return request(`/api/recipes/${id}/export`)
 }
 
@@ -51,7 +51,7 @@ export function importRecipe(recipe: unknown): Promise<Recipe> {
   })
 }
 
-export function exportAllRecipes(): Promise<Recipe[]> {
+export function exportAllRecipes(): Promise<QuokkaExport[]> {
   return request('/api/recipes/export/all')
 }
 

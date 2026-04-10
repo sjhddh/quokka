@@ -24,6 +24,7 @@ export const LocatorSchema = z.object({
   text: z.string().optional(),
   ariaLabel: z.string().optional(),
   testId: z.string().optional(),
+  fallbackSelectors: z.array(z.string()).optional(),
 })
 
 const ClickStepSchema = z.object({
@@ -65,6 +66,25 @@ const CheckpointStepSchema = z.object({
   description: z.string().optional(),
 })
 
+const ScrollStepSchema = z.object({
+  type: z.literal('scroll'),
+  target: LocatorSchema,
+  description: z.string().optional(),
+})
+
+const SelectStepSchema = z.object({
+  type: z.literal('select'),
+  target: LocatorSchema,
+  value: z.string(),
+  description: z.string().optional(),
+})
+
+const HoverStepSchema = z.object({
+  type: z.literal('hover'),
+  target: LocatorSchema,
+  description: z.string().optional(),
+})
+
 export const StepSchema = z.discriminatedUnion('type', [
   ClickStepSchema,
   TypeStepSchema,
@@ -72,13 +92,32 @@ export const StepSchema = z.discriminatedUnion('type', [
   ExtractStepSchema,
   WaitStepSchema,
   CheckpointStepSchema,
+  ScrollStepSchema,
+  SelectStepSchema,
+  HoverStepSchema,
 ])
+
+/** Allowlisted step types for security verification */
+export const ALLOWED_STEP_TYPES = [
+  'navigate', 'click', 'type', 'wait', 'extract',
+  'scroll', 'select', 'hover', 'checkpoint',
+] as const
+
+export const AuthorSchema = z.object({
+  name: z.string(),
+  url: z.string().optional(),
+})
 
 export const RecipeSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().optional(),
   version: z.string().default('0.1.0'),
+  schemaVersion: z.literal(1).default(1),
+  integrity: z.string().optional(),
+  author: AuthorSchema.optional(),
+  createdAt: z.string().default(() => new Date().toISOString()),
+  updatedAt: z.string().default(() => new Date().toISOString()),
   hosts: z.array(z.string()),
   slots: z.array(SlotSchema),
   guards: z.array(GuardSchema),
@@ -88,4 +127,10 @@ export const RecipeSchema = z.object({
     tags: z.array(z.string()),
     pack: z.string().optional(),
   }),
+})
+
+export const QuokkaExportSchema = z.object({
+  quokka_version: z.string(),
+  exported_at: z.string(),
+  recipe: RecipeSchema,
 })

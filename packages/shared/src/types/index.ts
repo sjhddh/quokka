@@ -6,6 +6,8 @@ import {
   LocatorSchema,
   StepSchema,
   RecipeSchema,
+  QuokkaExportSchema,
+  AuthorSchema,
 } from '../schemas/recipe.js'
 import { RunStatusSchema, RunSchema } from '../schemas/run.js'
 import { RunEventTypeSchema, RunEventSchema } from '../schemas/event.js'
@@ -22,3 +24,5 @@ export type Run = z.infer<typeof RunSchema>
 export type RunEventType = z.infer<typeof RunEventTypeSchema>
 export type RunEvent = z.infer<typeof RunEventSchema>
 export type Pack = z.infer<typeof PackSchema>
+export type QuokkaExport = z.infer<typeof QuokkaExportSchema>
+export type Author = z.infer<typeof AuthorSchema>

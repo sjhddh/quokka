@@ -5,6 +5,9 @@ export const exportTableRecipe: Recipe = {
   name: 'Export Table Data',
   description: 'Navigate to a page and extract table text content',
   version: '0.1.0',
+  schemaVersion: 1,
+  createdAt: '2025-01-01T00:00:00.000Z',
+  updatedAt: '2025-01-01T00:00:00.000Z',
   hosts: ['*'],
   slots: [
     {

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import Fastify, { type FastifyInstance } from 'fastify'
 import cors from '@fastify/cors'
 import { createDb, RecipeRepo, RunRepo, EventRepo, ProviderRepo } from '@quokka/storage'
-import { RecipeSchema } from '@quokka/shared'
+import { RecipeSchema, QuokkaExportSchema } from '@quokka/shared'
 import type { Recipe } from '@quokka/shared'
 import { recipesPlugin } from '../routes/recipes.js'
 import { runsPlugin } from '../routes/runs.js'
@@ -53,6 +53,9 @@ describe('Recipe CRUD', () => {
     id: 'test-recipe-1',
     name: 'Test Recipe',
     version: '0.1.0',
+    schemaVersion: 1,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
     hosts: ['example.com'],
     slots: [],
     guards: [],
@@ -274,6 +277,9 @@ describe('Recipe Import/Export', () => {
     id: 'export-test-1',
     name: 'Export Test',
     version: '0.1.0',
+    schemaVersion: 1,
+    createdAt: '2025-01-01T00:00:00.000Z',
+    updatedAt: '2025-01-01T00:00:00.000Z',
     hosts: ['example.com'],
     slots: [],
     guards: [],
@@ -295,12 +301,12 @@ describe('Recipe Import/Export', () => {
     expect(res.statusCode).toBe(200)
     expect(res.headers['content-type']).toContain('application/json')
     expect(res.headers['content-disposition']).toContain('attachment')
-    expect(res.headers['content-disposition']).toContain('recipe-')
+    expect(res.headers['content-disposition']).toContain('.quokka.json')
 
     const body = res.json()
-    const parsed = RecipeSchema.safeParse(body)
+    const parsed = QuokkaExportSchema.safeParse(body)
     expect(parsed.success).toBe(true)
-    expect(body.name).toBe('Export Test')
+    expect(body.recipe.name).toBe('Export Test')
   })
 
   it('GET /api/recipes/:id/export — 404 for non-existent recipe', async () => {
@@ -345,9 +351,9 @@ describe('Recipe Import/Export', () => {
     expect(Array.isArray(body)).toBe(true)
     expect(body.length).toBeGreaterThan(0)
 
-    // Every recipe in the array should be valid
-    for (const recipe of body) {
-      const parsed = RecipeSchema.safeParse(recipe)
+    // Every item in the array should be a valid QuokkaExport
+    for (const item of body) {
+      const parsed = QuokkaExportSchema.safeParse(item)
       expect(parsed.success).toBe(true)
     }
   })

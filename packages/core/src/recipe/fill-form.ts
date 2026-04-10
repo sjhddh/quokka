@@ -5,6 +5,9 @@ export const fillFormRecipe: Recipe = {
   name: 'Fill Demo Form',
   description: 'Navigate to a demo form, fill in fields, and submit',
   version: '0.1.0',
+  schemaVersion: 1,
+  createdAt: '2025-01-01T00:00:00.000Z',
+  updatedAt: '2025-01-01T00:00:00.000Z',
   hosts: ['httpbin.org'],
   slots: [
     {

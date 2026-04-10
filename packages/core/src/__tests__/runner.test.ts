@@ -17,10 +17,14 @@ function createMockBridge(): BrowserBridge {
 }
 
 function createTestRecipe(): Recipe {
+  const now = new Date().toISOString()
   return {
     id: 'test-recipe',
     name: 'Test Recipe',
     version: '0.1.0',
+    schemaVersion: 1,
+    createdAt: now,
+    updatedAt: now,
     hosts: ['example.com'],
     slots: [{ key: 'url', label: 'URL', type: 'string' }],
     guards: [],
@@ -72,10 +76,14 @@ describe('RecipeRunner', () => {
     emitter.on('checkpoint_required', (e) => events.push(e))
     emitter.on('checkpoint_approved', (e) => events.push(e))
 
+    const now = new Date().toISOString()
     const recipe: Recipe = {
       id: 'cp-recipe',
       name: 'Checkpoint Recipe',
       version: '0.1.0',
+      schemaVersion: 1,
+      createdAt: now,
+      updatedAt: now,
       hosts: ['example.com'],
       slots: [],
       guards: [],
@@ -104,10 +112,14 @@ describe('RecipeRunner', () => {
     emitter.on('step_failed', (e) => events.push(e))
     emitter.on('run_failed', (e) => events.push(e))
 
+    const now2 = new Date().toISOString()
     const recipe: Recipe = {
       id: 'fail-recipe',
       name: 'Fail Recipe',
       version: '0.1.0',
+      schemaVersion: 1,
+      createdAt: now2,
+      updatedAt: now2,
       hosts: ['example.com'],
       slots: [],
       guards: [],

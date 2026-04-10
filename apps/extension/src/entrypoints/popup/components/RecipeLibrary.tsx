@@ -1,18 +1,10 @@
 import { useRef, useState } from 'react'
 import { useQuokkaStore } from '../../../store'
 import * as api from '../../../lib/api'
-
-function downloadJson(data: unknown, filename: string) {
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
-}
+import { downloadRecipe, downloadAllRecipes } from '../../../lib/export-recipe'
+import { parseRecipeFile, type ImportPreview } from '../../../lib/import-recipe'
+import { copyRecipeJson } from '../../../lib/share-link'
+import ImportPreviewDialog from './ImportPreviewDialog'
 
 export default function RecipeLibrary() {
   const recipes = useQuokkaStore((s) => s.recipes)
@@ -20,12 +12,25 @@ export default function RecipeLibrary() {
   const fetchRecipes = useQuokkaStore((s) => s.fetchRecipes)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [importError, setImportError] = useState<string | null>(null)
+  const [importPreviews, setImportPreviews] = useState<ImportPreview[] | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
 
   const handleExport = async (id: string) => {
     try {
-      const recipe = await api.exportRecipe(id)
+      const exported = await api.exportRecipe(id)
+      const recipe = exported.recipe
       const safeName = recipe.name.replace(/[^a-zA-Z0-9_-]/g, '_')
-      downloadJson(recipe, `recipe-${safeName}.json`)
+      const json = JSON.stringify(exported, null, 2)
+      const blob = new Blob([json], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${safeName}.quokka.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
     } catch {
       // silently fail for individual export
     }
@@ -33,22 +38,32 @@ export default function RecipeLibrary() {
 
   const handleExportAll = async () => {
     try {
-      const allRecipes = await api.exportAllRecipes()
-      downloadJson(allRecipes, 'recipes-all.json')
+      const allExports = await api.exportAllRecipes()
+      const json = JSON.stringify(allExports, null, 2)
+      const blob = new Blob([json], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'recipes-all.quokka.json'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
     } catch {
       // silently fail
     }
   }
 
-  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setImportError(null)
+    setImportPreviews(null)
     const file = e.target.files?.[0]
     if (!file) return
     try {
       const text = await file.text()
-      const data = JSON.parse(text)
-      await api.importRecipe(data)
-      await fetchRecipes()
+      const result = parseRecipeFile(text)
+      const previews = Array.isArray(result) ? result : [result]
+      setImportPreviews(previews)
     } catch (err) {
       setImportError(err instanceof Error ? err.message : 'Import failed')
     }
@@ -56,21 +71,61 @@ export default function RecipeLibrary() {
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
+  const handleConfirmImport = async () => {
+    if (!importPreviews) return
+    setImporting(true)
+    setImportError(null)
+    try {
+      for (const preview of importPreviews) {
+        await api.importRecipe(preview.recipe)
+      }
+      await fetchRecipes()
+      setImportPreviews(null)
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : 'Import failed')
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const handleCancelImport = () => {
+    setImportPreviews(null)
+  }
+
+  const handleShare = async (recipe: typeof recipes[0]) => {
+    try {
+      await copyRecipeJson(recipe)
+      setCopiedId(recipe.id)
+      setTimeout(() => setCopiedId(null), 2000)
+    } catch {
+      // Clipboard API may not be available
+    }
+  }
+
   return (
     <div className="space-y-2">
+      {importPreviews && (
+        <ImportPreviewDialog
+          previews={importPreviews}
+          onConfirm={handleConfirmImport}
+          onCancel={handleCancelImport}
+          importing={importing}
+        />
+      )}
+
       <div className="flex gap-2 mb-2">
         <input
           ref={fileInputRef}
           type="file"
-          accept=".json"
+          accept=".quokka.json,.json"
           className="hidden"
-          onChange={handleImport}
+          onChange={handleFileSelected}
         />
         <button
           onClick={() => fileInputRef.current?.click()}
           className="px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded hover:bg-indigo-100 transition-colors"
         >
-          Import
+          Import Recipe
         </button>
         <button
           onClick={handleExportAll}
@@ -114,9 +169,16 @@ export default function RecipeLibrary() {
             </div>
             <div className="flex gap-1.5 shrink-0">
               <button
+                onClick={() => handleShare(recipe)}
+                className="px-2 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded hover:bg-gray-100 transition-colors"
+                title="Copy recipe JSON to clipboard"
+              >
+                {copiedId === recipe.id ? 'Copied!' : 'Share'}
+              </button>
+              <button
                 onClick={() => handleExport(recipe.id)}
                 className="px-2 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded hover:bg-gray-100 transition-colors"
-                title="Export recipe"
+                title="Download as .quokka.json"
               >
                 Export
               </button>

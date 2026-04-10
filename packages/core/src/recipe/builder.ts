@@ -65,6 +65,15 @@ export class RecipeBuilder {
       case 'checkpoint':
         this._steps.push({ type: 'checkpoint', message: opts.message ?? '', description: opts.description })
         break
+      case 'scroll':
+        this._steps.push({ type: 'scroll', target: opts.target ?? {}, description: opts.description })
+        break
+      case 'select':
+        this._steps.push({ type: 'select', target: opts.target ?? {}, value: opts.value ?? '', description: opts.description })
+        break
+      case 'hover':
+        this._steps.push({ type: 'hover', target: opts.target ?? {}, description: opts.description })
+        break
     }
     return this
   }
@@ -75,11 +84,15 @@ export class RecipeBuilder {
   }
 
   build(): Recipe {
+    const now = new Date().toISOString()
     return {
       id: nanoid(),
       name: this._name,
       description: this._description,
       version: '0.1.0',
+      schemaVersion: 1,
+      createdAt: now,
+      updatedAt: now,
       hosts: this._hosts,
       slots: this._slots,
       guards: [],

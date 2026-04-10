@@ -5,6 +5,9 @@ export const extractLinksRecipe: Recipe = {
   name: 'Extract Page Links',
   description: 'Navigate to a URL and extract all link hrefs from the page',
   version: '0.1.0',
+  schemaVersion: 1,
+  createdAt: '2025-01-01T00:00:00.000Z',
+  updatedAt: '2025-01-01T00:00:00.000Z',
   hosts: ['*'],
   slots: [
     {
