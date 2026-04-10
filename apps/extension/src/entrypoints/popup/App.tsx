@@ -6,8 +6,10 @@ import RecipeLibrary from './components/RecipeLibrary'
 import DoMode from './components/DoMode'
 import CheckpointDialog from './components/CheckpointDialog'
 import LLMSettings from './components/LLMSettings'
+import StatsPanel from './components/StatsPanel'
+import RatingPrompt from './components/RatingPrompt'
 
-const TABS = ['Quick Run', 'Watch Me', 'Recipes', 'Do'] as const
+const TABS = ['Quick Run', 'Watch Me', 'Recipes', 'Do', 'Stats'] as const
 type Tab = (typeof TABS)[number]
 
 const TAB_ICONS: Record<Tab, string> = {
@@ -15,6 +17,7 @@ const TAB_ICONS: Record<Tab, string> = {
   'Watch Me': '',
   Recipes: '',
   Do: '\u2728',
+  Stats: '',
 }
 
 export default function App() {
@@ -95,7 +98,11 @@ export default function App() {
         {activeTab === 'Watch Me' && <WatchMe />}
         {activeTab === 'Recipes' && <RecipeLibrary />}
         {activeTab === 'Do' && <DoMode />}
+        {activeTab === 'Stats' && <StatsPanel />}
       </main>
+
+      {/* Rating prompt — fixed at bottom */}
+      <RatingPrompt />
     </div>
   )
 }

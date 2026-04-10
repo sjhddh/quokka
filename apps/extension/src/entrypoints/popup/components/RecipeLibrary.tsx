@@ -7,6 +7,7 @@ import { parseRecipeFile, type ImportPreview } from '../../../lib/import-recipe'
 import { copyRecipeJson } from '../../../lib/share-link'
 import ImportPreviewDialog from './ImportPreviewDialog'
 import TimelineEditor from './TimelineEditor'
+import { incrementStat } from '../../../lib/stats'
 
 export default function RecipeLibrary() {
   const recipes = useQuokkaStore((s) => s.recipes)
@@ -16,6 +17,7 @@ export default function RecipeLibrary() {
   const [importError, setImportError] = useState<string | null>(null)
   const [importPreviews, setImportPreviews] = useState<ImportPreview[] | null>(null)
   const [importing, setImporting] = useState(false)
+  const [showImportDialog, setShowImportDialog] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null)
   const updateRecipe = useQuokkaStore((s) => s.updateRecipe)
@@ -38,6 +40,7 @@ export default function RecipeLibrary() {
         return
       }
       downloadRecipe(recipe)
+      await incrementStat('recipesExported')
     } catch (err) {
       setExportError(err instanceof Error ? err.message : 'Failed to export recipe')
     }
@@ -51,6 +54,9 @@ export default function RecipeLibrary() {
         return
       }
       downloadAllRecipes(recipes)
+      for (const _ of recipes) {
+        await incrementStat('recipesExported')
+      }
     } catch (err) {
       setExportError(err instanceof Error ? err.message : 'Failed to export recipes')
     }
@@ -87,9 +93,11 @@ export default function RecipeLibrary() {
             ls.saveRecipe(preview.recipe),
           )
         }
+        await incrementStat('recipesImported')
       }
       await fetchRecipes()
       setImportPreviews(null)
+      setShowImportDialog(false)
     } catch (err) {
       setImportError(
         err instanceof Error ? err.message : 'Failed to save imported recipes to storage.',
@@ -101,6 +109,8 @@ export default function RecipeLibrary() {
 
   const handleCancelImport = () => {
     setImportPreviews(null)
+    setShowImportDialog(false)
+    setImportError(null)
   }
 
   const handleShare = async (recipe: typeof recipes[0]) => {
@@ -111,6 +121,12 @@ export default function RecipeLibrary() {
     } catch {
       // Clipboard API may not be available
     }
+  }
+
+  const handleOpenImport = () => {
+    setImportError(null)
+    setImportPreviews(null)
+    setShowImportDialog(true)
   }
 
   return (
@@ -126,26 +142,37 @@ export default function RecipeLibrary() {
         />
       )}
 
-      {importPreviews && (
+      {showImportDialog && (
         <ImportPreviewDialog
           previews={importPreviews}
+          onParsed={(previews) => setImportPreviews(previews)}
           onConfirm={handleConfirmImport}
           onCancel={handleCancelImport}
           importing={importing}
           error={importError}
+          fileInput={
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".quokka.json,.json"
+                className="hidden"
+                onChange={handleFileSelected}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded hover:bg-indigo-100 transition-colors"
+              >
+                Choose File
+              </button>
+            </>
+          }
         />
       )}
 
       <div className="flex gap-2 mb-2">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".quokka.json,.json"
-          className="hidden"
-          onChange={handleFileSelected}
-        />
         <button
-          onClick={() => fileInputRef.current?.click()}
+          onClick={handleOpenImport}
           className="px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded hover:bg-indigo-100 transition-colors"
         >
           Import Recipe
@@ -158,7 +185,7 @@ export default function RecipeLibrary() {
         </button>
       </div>
 
-      {importError && !importPreviews && (
+      {importError && !showImportDialog && (
         <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
           {importError}
         </div>
@@ -182,8 +209,39 @@ export default function RecipeLibrary() {
           >
             <div className="flex-1 min-w-0">
               <div className="text-sm font-medium text-gray-800 truncate">{recipe.name}</div>
-              <div className="text-xs text-gray-500 mt-0.5">
-                {recipe.steps.length} step{recipe.steps.length !== 1 ? 's' : ''}
+              {recipe.meta?.description && (
+                <div className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                  {recipe.meta.description}
+                </div>
+              )}
+              <div className="flex gap-2 mt-0.5 text-xs text-gray-500">
+                {recipe.steps.length > 0 && (
+                  <span>
+                    {recipe.steps.length} step{recipe.steps.length !== 1 ? 's' : ''}
+                  </span>
+                )}
+                {typeof recipe.meta?.runCount === 'number' && recipe.meta.runCount > 0 && (
+                  <span className="text-indigo-500">
+                    Ran {recipe.meta.runCount} time{recipe.meta.runCount !== 1 ? 's' : ''}
+                  </span>
+                )}
+                {recipe.meta?.author?.name && (
+                  <span>
+                    by{' '}
+                    {recipe.meta.author.url ? (
+                      <a
+                        href={recipe.meta.author.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-indigo-600 hover:underline"
+                      >
+                        {recipe.meta.author.name}
+                      </a>
+                    ) : (
+                      recipe.meta.author.name
+                    )}
+                  </span>
+                )}
               </div>
               <div className="flex gap-1 mt-1.5 flex-wrap">
                 {recipe.hosts.map((host) => (

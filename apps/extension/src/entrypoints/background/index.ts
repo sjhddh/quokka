@@ -5,14 +5,17 @@ import {
   type ExecuteStepPayload,
   type CheckpointPendingPayload,
   type CheckpointResponsePayload,
+  type ImportFromUrlPayload,
 } from '../../lib/messaging'
 import { dispatchReplay, type ReplayCallbacks } from '../../runtime/step-dispatcher'
 import type { StepResult } from '../../runtime/content-executor'
 import * as api from '../../lib/api'
 import * as localStorage from '../../lib/local-storage'
+import { fetchRecipeFromUrl, decodeRecipeFromUrl, isQuokkaRecipeUrl } from '../../lib/url-import'
 import { compileTrace as compileTraceLocal } from '@quokka/core/compiler'
 import type { WatchTrace } from '@quokka/core/compiler'
 import { DEMO_RECIPES, findStarterForUrl } from '../../lib/demo-recipes'
+import { incrementStat } from '../../lib/stats'
 
 const CHECKPOINT_NOTIFICATION_PREFIX = 'quokka-checkpoint-'
 
@@ -55,6 +58,7 @@ async function handleToggleRecording(): Promise<{
       try {
         const recipe = compileTraceLocal(trace as WatchTrace)
         await localStorage.saveRecipe(recipe)
+        await incrementStat('recipesRecorded')
         return {
           ok: true,
           isRecording: false,
@@ -152,6 +156,14 @@ export default defineBackground(() => {
           .catch((err) => sendResponse({ ok: false, error: String(err) }))
         return true
       }
+
+      case MessageType.IMPORT_FROM_URL: {
+        const { url } = payload as ImportFromUrlPayload
+        handleImportFromUrl(url)
+          .then((result) => sendResponse({ ok: true, ...result }))
+          .catch((err) => sendResponse({ ok: false, error: String(err) }))
+        return true
+      }
     }
   })
 
@@ -175,6 +187,32 @@ export default defineBackground(() => {
       }
     } catch {
       // Tab query can fail in some contexts — ignore
+    }
+  })
+
+  // Detect navigation to .quokka.json URLs and offer import
+  chrome.webNavigation?.onCompleted.addListener(async (details) => {
+    if (details.frameId !== 0) return // Only main frame
+    const url = details.url
+    if (!isQuokkaRecipeUrl(url)) return
+
+    try {
+      // First try decoding from URL fragment (for quokka.run/import links)
+      let recipe = decodeRecipeFromUrl(url)
+      if (!recipe) {
+        recipe = await fetchRecipeFromUrl(url)
+      }
+      await localStorage.saveRecipe(recipe)
+
+      // Notify user via Chrome notification
+      chrome.notifications.create(`quokka-import-${Date.now()}`, {
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL('icon/128.png'),
+        title: 'Quokka — Recipe Imported',
+        message: `"${recipe.name}" has been imported (${recipe.steps.length} steps).`,
+      })
+    } catch {
+      // Silent failure — user can still import manually
     }
   })
 
@@ -248,7 +286,30 @@ async function handleLocalReplay(
     },
   }
 
-  return dispatchReplay(recipe, slotValues, tabId, callbacks)
+  await incrementStat('recipesReplayed')
+  const run = await dispatchReplay(recipe, slotValues, tabId, callbacks)
+
+  if (run.status === 'completed') {
+    await incrementStat('replaySuccessCount')
+    // Increment per-recipe runCount in local storage
+    try {
+      const stored = await localStorage.getRecipe(recipe.id)
+      const target = stored ?? recipe
+      const meta = target.meta as Record<string, unknown>
+      const currentRunCount = typeof meta?.runCount === 'number' ? (meta.runCount as number) : 0
+      const updatedRecipe: import('@quokka/shared').Recipe = {
+        ...target,
+        meta: { ...target.meta, runCount: currentRunCount + 1 },
+      }
+      await localStorage.saveRecipe(updatedRecipe)
+    } catch {
+      // Non-critical — don't fail the run for a counter update
+    }
+  } else if (run.status === 'failed') {
+    await incrementStat('replayFailureCount')
+  }
+
+  return run
 }
 
 async function handleStartRun(
@@ -267,4 +328,17 @@ async function handleStartRun(
 
   // Delegate to the local replay runtime (same path as START_LOCAL_REPLAY)
   return handleLocalReplay(recipe, slotValues)
+}
+
+async function handleImportFromUrl(url: string): Promise<{ name: string; stepCount: number }> {
+  // Try decoding from URL fragment first
+  let recipe = decodeRecipeFromUrl(url)
+  if (!recipe) {
+    recipe = await fetchRecipeFromUrl(url)
+  }
+
+  // Save to local storage
+  await localStorage.saveRecipe(recipe)
+
+  return { name: recipe.name, stepCount: recipe.steps.length }
 }
