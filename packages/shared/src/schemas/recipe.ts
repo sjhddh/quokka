@@ -126,6 +126,8 @@ export const RecipeSchema = z.object({
     createdFrom: z.enum(['watch', 'prompt', 'code', 'import']),
     tags: z.array(z.string()),
     pack: z.string().optional(),
+    isDemo: z.boolean().optional(),
+    suggestedFor: z.string().optional(),
   }),
 })
 

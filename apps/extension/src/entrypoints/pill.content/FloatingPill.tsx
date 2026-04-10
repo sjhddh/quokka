@@ -196,7 +196,24 @@ export default function FloatingPill() {
         onMouseDown={handleMouseDown}
         onClick={handleClick}
       >
-        {state === 'recording' ? (
+        {state === 'onboarding' ? (
+          <>
+            <span className="pill-logo onboarding-glow">Q</span>
+            <span className="pill-label">
+              Record your first automation! Click here to start.
+            </span>
+            <button
+              className="onboarding-dismiss"
+              onClick={(e) => {
+                e.stopPropagation()
+                dismissOnboarding()
+              }}
+              aria-label="Dismiss onboarding"
+            >
+              &times;
+            </button>
+          </>
+        ) : state === 'recording' ? (
           <>
             <span className="recording-dot" />
             <span className="pill-label">
