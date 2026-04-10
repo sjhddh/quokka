@@ -43,6 +43,15 @@ export enum MessageType {
 
   // Auth warning messages
   AUTH_WARNING = 'AUTH_WARNING',
+
+  // Intent extraction messages (v2 recording flow)
+  ACTION_CAPTURED = 'ACTION_CAPTURED',
+  INTENT_EXTRACTED = 'INTENT_EXTRACTED',
+  RECORDING_COMPLETE_V2 = 'RECORDING_COMPLETE_V2',
+
+  // V2 intent-based replay — DOM capture
+  CAPTURE_PAGE_SNAPSHOT = 'CAPTURE_PAGE_SNAPSHOT',
+  PAGE_SNAPSHOT_RESULT = 'PAGE_SNAPSHOT_RESULT',
 }
 
 export interface Message {
@@ -119,6 +128,41 @@ export interface ImportFromUrlPayload {
 
 export interface AuthWarningPayload {
   warnings: string[]
+}
+
+export interface ActionCapturedPayload {
+  type: 'click' | 'type' | 'navigate' | 'select' | 'scroll'
+  element?: {
+    tag: string
+    text?: string
+    ariaLabel?: string
+    role?: string
+    placeholder?: string
+    name?: string
+    type?: string
+    selector: string
+  }
+  value?: string
+  url?: string
+  pageUrl: string
+  pageTitle: string
+  timestamp: number
+}
+
+export interface IntentExtractedPayload {
+  step: import('@quokka/core').IntentStep | import('@quokka/core').PageBoundaryStep
+}
+
+export interface RecordingCompleteV2Payload {
+  recipe: import('@quokka/shared').RecipeV2
+}
+
+export interface CapturePageSnapshotPayload {
+  // No fields needed — content script captures snapshot of current document
+}
+
+export interface PageSnapshotResultPayload {
+  snapshot: import('@quokka/core').PageSnapshot
 }
 
 export interface CheckSelectorPayload {

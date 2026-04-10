@@ -2,11 +2,12 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { MessageType, sendToBackground, humanizeStep } from '../../lib/messaging'
 import PillSidebar from './PillSidebar'
 import StepToast, { useToasts } from './StepToast'
+import RecordingView, { type RecordingStep } from './RecordingView'
+import ConfirmationView from './ConfirmationView'
 
-type PillState = 'idle' | 'onboarding' | 'recording' | 'running' | 'error'
+type PillState = 'idle' | 'onboarding' | 'recording' | 'recording-v2' | 'confirming' | 'running' | 'error'
 
 function describeEntry(entry: { type: string; selector?: string; value?: string; url?: string }): string {
-  // Convert to HumanizeStepInput shape and delegate to humanizeStep
   return humanizeStep({
     type: entry.type,
     target: entry.selector ? { css: entry.selector } : undefined,
@@ -22,6 +23,10 @@ export default function FloatingPill() {
   const [runProgress, setRunProgress] = useState({ current: 0, total: 0 })
   const { toasts, addToast } = useToasts()
 
+  // v2 recording state
+  const [recordingSteps, setRecordingSteps] = useState<RecordingStep[]>([])
+  const [recipeName, setRecipeName] = useState('Untitled recipe')
+
   // Drag state
   const pillRef = useRef<HTMLDivElement>(null)
   const dragging = useRef(false)
@@ -33,18 +38,17 @@ export default function FloatingPill() {
     chrome.storage.local.get('hasSeenOnboarding', (result) => {
       if (!result.hasSeenOnboarding) {
         setState('onboarding')
-        // Position center-right for onboarding visibility
         const centerBottom = Math.round(window.innerHeight / 2 - 28)
         setPosition({ bottom: centerBottom, right: 24 })
       }
     })
 
-    sendToBackground<{ ok: boolean; isRecording: boolean; stepCount: number }>({
+    sendToBackground<{ ok: boolean; isRecording: boolean; stepCount: number; isV2?: boolean }>({
       type: MessageType.GET_STATE,
     })
       .then((resp) => {
         if (resp?.isRecording) {
-          setState('recording')
+          setState(resp.isV2 ? 'recording-v2' : 'recording')
           setStepCount(resp.stepCount)
         }
       })
@@ -62,16 +66,92 @@ export default function FloatingPill() {
           setState('recording')
           setStepCount(0)
           break
+
+        case 'recording-started-v2':
+          setState('recording-v2')
+          setRecordingSteps([])
+          setRecipeName('Untitled recipe')
+          break
+
         case 'recording-stopped':
           setState('idle')
           setStepCount(0)
           break
+
         case 'recording-step':
           setStepCount(detail.stepCount ?? 0)
           if (detail.entry) {
             addToast(describeEntry(detail.entry))
           }
           break
+
+        // v2: a new action was captured — add a pending step immediately
+        case 'action-captured': {
+          const stepId: string = detail.stepId
+          if (!stepId) break
+          const pendingStep: RecordingStep = {
+            id: stepId,
+            intent: '',
+            type: 'action',
+            editing: false,
+            pending: true,
+          }
+          setRecordingSteps((prev) => [...prev, pendingStep])
+          break
+        }
+
+        // v2: LLM finished extracting intent for a step
+        case 'intent-extracted': {
+          const { stepId, step } = detail
+          if (!stepId || !step) break
+          if (step.type === 'page_boundary') {
+            // Replace or insert as page_boundary
+            setRecordingSteps((prev) => {
+              const existing = prev.findIndex((s) => s.id === stepId)
+              const boundary: RecordingStep = {
+                id: stepId,
+                intent: '',
+                type: 'page_boundary',
+                editing: false,
+                pending: false,
+              }
+              if (existing >= 0) {
+                const next = [...prev]
+                next[existing] = boundary
+                return next
+              }
+              return [...prev, boundary]
+            })
+          } else {
+            // action step — fill in the intent
+            setRecordingSteps((prev) => {
+              const existing = prev.findIndex((s) => s.id === stepId)
+              const resolved: RecordingStep = {
+                id: stepId,
+                intent: step.intent ?? '',
+                type: 'action',
+                editing: false,
+                pending: false,
+              }
+              if (existing >= 0) {
+                const next = [...prev]
+                next[existing] = resolved
+                return next
+              }
+              return [...prev, resolved]
+            })
+          }
+          break
+        }
+
+        // v2: background signals recording is complete, show confirmation
+        case 'recording-complete-v2': {
+          const name: string = detail.recipeName ?? 'Untitled recipe'
+          setRecipeName(name)
+          setState('confirming')
+          break
+        }
+
         case 'run-progress':
           setState(detail.status === 'failed' ? 'error' : 'running')
           setRunProgress({
@@ -108,11 +188,8 @@ export default function FloatingPill() {
   )
 
   useEffect(() => {
-    let didDrag = false
-
     function handleMouseMove(e: MouseEvent) {
       if (!dragging.current) return
-      didDrag = true
       const vw = window.innerWidth
       const vh = window.innerHeight
       const pill = pillRef.current
@@ -161,13 +238,20 @@ export default function FloatingPill() {
       const resp = await sendToBackground<{
         ok: boolean
         isRecording: boolean
+        isV2?: boolean
         compiled?: { name: string; stepCount: number }
       }>({
         type: MessageType.TOGGLE_RECORDING,
       })
       if (resp?.isRecording) {
-        setState('recording')
-        setStepCount(0)
+        if (resp.isV2) {
+          setState('recording-v2')
+          setRecordingSteps([])
+          setRecipeName('Untitled recipe')
+        } else {
+          setState('recording')
+          setStepCount(0)
+        }
       } else {
         setState('idle')
         setStepCount(0)
@@ -181,10 +265,68 @@ export default function FloatingPill() {
     }
   }, [addToast])
 
+  // v2: user edited an intent inline during recording
+  const handleEditStep = useCallback((id: string, newIntent: string) => {
+    setRecordingSteps((prev) =>
+      prev.map((s) => {
+        if (s.id !== id) return s
+        // If newIntent equals current intent, this is a toggle-into-edit-mode call
+        if (s.intent === newIntent && !s.editing) {
+          return { ...s, editing: true }
+        }
+        return { ...s, intent: newIntent, editing: false }
+      })
+    )
+  }, [])
+
+  // v2: user clicks Done on recording view — stop recording and go to confirming
+  const handleStopRecordingV2 = useCallback(async () => {
+    try {
+      await sendToBackground({ type: MessageType.TOGGLE_RECORDING })
+    } catch {
+      // ignore
+    }
+    setState('confirming')
+  }, [])
+
+  // v2: user confirms the recording in ConfirmationView
+  const handleConfirm = useCallback(
+    async (name: string, steps: RecordingStep[]) => {
+      try {
+        await sendToBackground({
+          type: MessageType.RECORDING_COMPLETE_V2,
+          payload: { name, steps },
+        })
+        addToast(`Saved: ${name} (${steps.filter((s) => s.type === 'action').length} steps)`)
+      } catch {
+        // ignore
+      }
+      setState('idle')
+      setRecordingSteps([])
+    },
+    [addToast]
+  )
+
+  // v2: user discards recording
+  const handleDiscard = useCallback(async () => {
+    try {
+      // If recording is still active, toggle it off
+      await sendToBackground({ type: MessageType.TOGGLE_RECORDING })
+    } catch {
+      // ignore
+    }
+    setState('idle')
+    setRecordingSteps([])
+  }, [])
+
   const progressPct =
     runProgress.total > 0
       ? Math.round((runProgress.current / runProgress.total) * 100)
       : 0
+
+  // When in v2 recording or confirming states, show panel instead of sidebar
+  const showRecordingPanel = state === 'recording-v2'
+  const showConfirmPanel = state === 'confirming'
 
   return (
     <>
@@ -220,6 +362,18 @@ export default function FloatingPill() {
               Recording... {stepCount} step{stepCount !== 1 ? 's' : ''}
             </span>
           </>
+        ) : state === 'recording-v2' ? (
+          <>
+            <span className="watching-dot" />
+            <span className="pill-label">
+              Watching... {recordingSteps.filter((s) => s.type === 'action').length} step{recordingSteps.filter((s) => s.type === 'action').length !== 1 ? 's' : ''}
+            </span>
+          </>
+        ) : state === 'confirming' ? (
+          <>
+            <span className="pill-logo">Q</span>
+            <span className="pill-label">Review recording</span>
+          </>
         ) : state === 'running' ? (
           <>
             <span className="pill-logo">Q</span>
@@ -244,8 +398,27 @@ export default function FloatingPill() {
       {/* Step toasts */}
       <StepToast toasts={toasts} />
 
-      {/* Sidebar */}
-      {sidebarOpen && (
+      {/* v2 recording panel */}
+      {showRecordingPanel && (
+        <RecordingView
+          steps={recordingSteps}
+          onEditStep={handleEditStep}
+          onStopRecording={handleStopRecordingV2}
+        />
+      )}
+
+      {/* v2 confirmation panel */}
+      {showConfirmPanel && (
+        <ConfirmationView
+          steps={recordingSteps}
+          recipeName={recipeName}
+          onConfirm={handleConfirm}
+          onDiscard={handleDiscard}
+        />
+      )}
+
+      {/* Regular sidebar (not shown during v2 recording/confirming) */}
+      {sidebarOpen && !showRecordingPanel && !showConfirmPanel && (
         <PillSidebar
           isRecording={state === 'recording'}
           onToggleRecording={handleToggleRecording}
